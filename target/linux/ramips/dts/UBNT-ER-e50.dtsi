@@ -27,32 +27,23 @@
 			linux,code = <KEY_RESTART>;
 		};
 	};
-	mt7530: switch@0 {
-		compatible = "mediatek,mt7530";
+	reg_core: regulator-core {
+		compatible = "regulator-fixed";
+		regulator-name = "fixed-3.3V";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		regulator-boot-on;
+		regulator-always-on;
 	};
-
 
 };
 
-&ethernet {
+&eth {
 	status = "okay";
-	mtd-mac-address = <&factory 0x22>;
 
 	gmac0: mac@0 {
 		compatible = "mediatek,eth-mac";
 		reg = <0>;
-		phy-mode = "trgmii";
-
-		fixed-link {
-			speed = <1000>;
-			full-duplex;
-			pause;
-		};
-	};
-
-	gmac1: mac@1 {
-		compatible = "mediatek,eth-mac";
-		reg = <1>;
 		phy-mode = "rgmii";
 
 		fixed-link {
@@ -65,79 +56,58 @@
 	mdio: mdio-bus {
 		#address-cells = <1>;
 		#size-cells = <0>;
-	};
-};
 
-&mt7530 {
-	compatible = "mediatek,mt7530";
-	#address-cells = <1>;
-	#size-cells = <0>;
-	reg = <0>;
-	pinctrl-names = "default";
-	/* 
-	reset-gpios = <&pio 33 0>;
-	core-supply = <&mt6323_vpa_reg>;
-	io-supply = <&mt6323_vemc3v3_reg>;
-	*/
-
-	dsa,mii-bus = <&mdio>;
-
-	ports {
-		#address-cells = <1>;
-		#size-cells = <0>;
-		reg = <0>;
-
-		port@0 {
+		switch@0 {
+			compatible = "mediatek,mt7530";
+			#address-cells = <1>;
+			#size-cells = <0>;
 			reg = <0>;
-			label = "wan";
-			cpu = <&cpu_port1>;
-		};
+			pinctrl-names = "default";
+			mediatek,mcm;
+			resets = <&rstctrl 6>;
+			reset-names = "mcm";
 
-		port@1 {
-			reg = <1>;
-			label = "lan0";
-			cpu = <&cpu_port0>;
-		};
+			ports {
+				#address-cells = <1>;
+				#size-cells = <0>;
+				reg = <0>;
 
-		port@2 {
-			reg = <2>;
-			label = "lan1";
-			cpu = <&cpu_port0>;
-		};
+				port@0 {
+					reg = <0>;
+					label = "lan0";
+				};
 
-		port@3 {
-			reg = <3>;
-			label = "lan2";
-			cpu = <&cpu_port0>;
-		};
+				port@1 {
+					reg = <1>;
+					label = "lan1";
+				};
 
-		port@4 {
-			reg = <4>;
-			label = "lan3";
-			cpu = <&cpu_port0>;
-		};
+				port@2 {
+					reg = <2>;
+					label = "lan2";
+				};
 
-		cpu_port1: port@5 {
-			reg = <5>;
-			label = "cpu";
-			ethernet = <&gmac1>;
-			phy-mode = "rgmii";
+				port@3 {
+					reg = <3>;
+					label = "lan3";
+				};
 
-			fixed-link {
-				speed = <1000>;
-				full-duplex;
-			};
-		};
+				port@4 {
+					reg = <4>;
+					label = "lan4";
+				};
 
-		cpu_port0: port@6 {
-			reg = <6>;
-			label = "cpu";
-			ethernet = <&gmac0>;
-			phy-mode = "trgmii";
+				port@6 {
+					reg = <6>;
+					label = "cpu";
+					ethernet = <&gmac0>;
+					phy-mode = "rgmii";
 
-			fixed-link {
-				speed = <1000>;
-				full-duplex;
+					fixed-link {
+						speed = <1000>;
+						full-duplex;
+					};
+				};
 			};
 		};
 	};
