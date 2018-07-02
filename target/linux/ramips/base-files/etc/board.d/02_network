@@ -211,7 +211,6 @@ ramips_setup_interfaces()
 	tl-wr841n-v13|\
 	u7628-01-128M-16M|\
 	ubnt-erx|\
-	ubnt-erx-sfp|\
 	ur-326n4g|\
 	wrtnode|\
 	wrtnode2p | \
@@ -378,6 +377,10 @@ ramips_setup_interfaces()
 	y1)
 		ucidef_add_switch "switch0" \
 			"0:lan:2" "1:lan:1" "4:wan" "6@eth0"
+		;;
+	ubnt-erx-sfp)
+		ucidef_set_interface_lan "lan0 lan1 lan2 lan3 lan4"
+		ucidef_set_interface_wan "wan"
 		;;
 	*)
 		RT3X5X=`cat /proc/cpuinfo | egrep "(RT3.5|RT5350)"`
