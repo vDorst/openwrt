@@ -1,0 +1,1044 @@
+diff --git a/arch/mips/ralink/Kconfig b/arch/mips/ralink/Kconfig
+index e8c699d24e28..19ffc3fb571f 100644
+--- a/arch/mips/ralink/Kconfig
++++ b/arch/mips/ralink/Kconfig
+@@ -59,6 +59,29 @@ choice
+ 		select HW_HAS_PCI
+ 		select WEAK_REORDERING_BEYOND_LLSC
+ 		select GENERIC_CLOCKEVENTS_BROADCAST
++		select HAVE_NET_DSA
++		select NET_DSA
++		select NET_MEDIATEK_SOC
++		select NET_DSA
++		select NET_DSA_TAG_MTK
++		select NET_DSA_MT7530
++		select NET
++		select NET_DEVLINK
++		select NET_PACKET
++		select INET
++		select NETDEVICES
++		select DUMMY
++		select AT803X_PHY
++		select GENERIC_PHY
++		select HAVE_NET_DSA
++		select NET_DSA
++		select NET_DSA_MT7530
++		select NET_DSA_TAG_MTK
++		select NET_FLOW_LIMIT
++		select NET_MEDIATEK_SOC
++		select NET_SWITCHDEV
++		select NET_VENDOR_MEDIATEK
++
+ endchoice
+ 
+ choice
+diff --git a/drivers/clk/Makefile b/drivers/clk/Makefile
+index f7f761b02bed..006844b6077a 100644
+--- a/drivers/clk/Makefile
++++ b/drivers/clk/Makefile
+@@ -68,6 +68,7 @@ obj-$(CONFIG_MACH_INGENIC)		+= ingenic/
+ obj-$(CONFIG_ARCH_KEYSTONE)		+= keystone/
+ obj-$(CONFIG_MACH_LOONGSON32)		+= loongson1/
+ obj-$(CONFIG_ARCH_MEDIATEK)		+= mediatek/
++obj-$(CONFIG_SOC_MT7621)		+= mediatek/
+ obj-$(CONFIG_COMMON_CLK_AMLOGIC)	+= meson/
+ obj-$(CONFIG_MACH_PIC32)		+= microchip/
+ ifeq ($(CONFIG_COMMON_CLK), y)
+diff --git a/drivers/clk/mediatek/Kconfig b/drivers/clk/mediatek/Kconfig
+index 28739a9a6e37..7f0da0bf5e43 100644
+--- a/drivers/clk/mediatek/Kconfig
++++ b/drivers/clk/mediatek/Kconfig
+@@ -97,3 +97,18 @@ config COMMON_CLK_MT8173
+ 	default ARCH_MEDIATEK
+ 	---help---
+ 	  This driver supports Mediatek MT8173 clocks.
++
++config COMMON_CLK_MT7621
++	bool "Clock driver for Mediatek MT7621"
++	depends on SOC_MT7621 || COMPILE_TEST
++	select COMMON_CLK_MEDIATEK
++	default SOC_MT7621
++	---help---
++	  This driver supports Mediatek MT7621 basic clocks.
++
++config COMMON_CLK_MT7621_ETHSYS
++	bool "Clock driver for Mediatek MT7621 ethsys"
++	depends on COMMON_CLK_MT7621
++	depends on MFD_SYSCON
++	---help---
++	  This driver supports Mediatek MT7621 ethsys clocks.
+diff --git a/drivers/clk/mediatek/Makefile b/drivers/clk/mediatek/Makefile
+index ba2a070765f0..7e97d693f9d7 100644
+--- a/drivers/clk/mediatek/Makefile
++++ b/drivers/clk/mediatek/Makefile
+@@ -13,5 +13,6 @@ obj-$(CONFIG_COMMON_CLK_MT2701_HIFSYS) += clk-mt2701-hif.o
+ obj-$(CONFIG_COMMON_CLK_MT2701_IMGSYS) += clk-mt2701-img.o
+ obj-$(CONFIG_COMMON_CLK_MT2701_MMSYS) += clk-mt2701-mm.o
+ obj-$(CONFIG_COMMON_CLK_MT2701_VDECSYS) += clk-mt2701-vdec.o
++obj-y += clk-mt7621-eth.o
+ obj-$(CONFIG_COMMON_CLK_MT8135) += clk-mt8135.o
+ obj-$(CONFIG_COMMON_CLK_MT8173) += clk-mt8173.o
+diff --git a/drivers/clk/mediatek/clk-mt7621-eth.c b/drivers/clk/mediatek/clk-mt7621-eth.c
+new file mode 100644
+index 000000000000..678d33900a0e
+--- /dev/null
++++ b/drivers/clk/mediatek/clk-mt7621-eth.c
+@@ -0,0 +1,108 @@
++/*
++ * Copyright (c) 2017 MediaTek Inc.
++ * Author: Chen Zhong <chen.zhong@mediatek.com>
++ *	   Sean Wang <sean.wang@mediatek.com>
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License version 2 as
++ * published by the Free Software Foundation.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ */
++
++#include <linux/clk-provider.h>
++#include <linux/of.h>
++#include <linux/of_address.h>
++#include <linux/of_device.h>
++#include <linux/platform_device.h>
++
++#include "clk-mtk.h"
++#include "clk-gate.h"
++
++#include <dt-bindings/clock/mt7621-clk.h>
++
++#define GATE_ETH(_id, _name, _parent, _shift) {	\
++		.id = _id,				\
++		.name = _name,				\
++		.parent_name = _parent,			\
++		.regs = &eth_cg_regs,			\
++		.shift = _shift,			\
++		.ops = &mtk_clk_gate_ops_no_setclr_inv,	\
++	}
++
++static const struct mtk_gate_regs eth_cg_regs = {
++	.set_ofs = 0x30,
++	.clr_ofs = 0x30,
++	.sta_ofs = 0x30,
++};
++
++static const struct mtk_gate eth_clks[] = {
++	GATE_ETH(CLK_ETHSYS_HSDMA, "eth_hsdma_en", "clkxtal", 5),
++	GATE_ETH(CLK_ETHSYS_ESW, "eth_esw_en", "clkxtal", 6),
++	GATE_ETH(CLK_ETHSYS_GDMA, "eth_gdma_en", "clkxtal", 14),
++	GATE_ETH(CLK_ETHSYS_I2C, "eth_i2c_en", "clkxtal", 16),
++	GATE_ETH(CLK_ETHSYS_ETH, "eth_eth_en", "clkxtal", 23),
++	GATE_ETH(CLK_ETHSYS_CRYPTO, "eth_crypto_en", "clkxtal", 29),
++};
++
++static int clk_mt7621_ethsys_init(struct platform_device *pdev)
++{
++	struct clk_onecell_data *clk_data;
++	struct device_node *node = pdev->dev.of_node;
++	int r;
++
++	clk_data = mtk_alloc_clk_data(CLK_ETHSYS_NR);
++
++	mtk_clk_register_gates(node, eth_clks, ARRAY_SIZE(eth_clks),
++			       clk_data);
++
++	r = of_clk_add_provider(node, of_clk_src_onecell_get, clk_data);
++	if (r)
++		dev_err(&pdev->dev,
++			"could not register clock provider: %s: %d\n",
++			pdev->name, r);
++
++	mtk_register_reset_controller(node, 1, 0x34);
++
++	return r;
++}
++
++static const struct of_device_id of_match_clk_mt7621_eth[] = {
++	{
++		.compatible = "mediatek,mt7621-ethsys",
++		.data = clk_mt7621_ethsys_init,
++	}, {
++		/* sentinel */
++	}
++};
++
++static int clk_mt7621_eth_probe(struct platform_device *pdev)
++{
++	int (*clk_init)(struct platform_device *);
++	int r;
++
++	clk_init = of_device_get_match_data(&pdev->dev);
++	if (!clk_init)
++		return -EINVAL;
++
++	r = clk_init(pdev);
++	if (r)
++		dev_err(&pdev->dev,
++			"could not register clock provider: %s: %d\n",
++			pdev->name, r);
++
++	return r;
++}
++
++static struct platform_driver clk_mt7621_eth_drv = {
++	.probe = clk_mt7621_eth_probe,
++	.driver = {
++		.name = "clk-mt7621-eth",
++		.of_match_table = of_match_clk_mt7621_eth,
++	},
++};
++
++builtin_platform_driver(clk_mt7621_eth_drv);
+diff --git a/drivers/clk/mediatek/clk-mt7621.c b/drivers/clk/mediatek/clk-mt7621.c
+new file mode 100644
+index 000000000000..0786ada35ede
+--- /dev/null
++++ b/drivers/clk/mediatek/clk-mt7621.c
+@@ -0,0 +1,589 @@
++/*
++ * Copyright (c) 2017 MediaTek Inc.
++ * Author: Chen Zhong <chen.zhong@mediatek.com>
++ *	   Sean Wang <sean.wang@mediatek.com>
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License version 2 as
++ * published by the Free Software Foundation.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ */
++
++#include <linux/clk-provider.h>
++#include <linux/of.h>
++#include <linux/of_address.h>
++#include <linux/of_device.h>
++#include <linux/platform_device.h>
++
++#include "clk-mtk.h"
++#include "clk-gate.h"
++#include "clk-cpumux.h"
++
++#include <dt-bindings/clock/mt7621-clk.h>
++#include <linux/clk.h> /* for consumer */
++
++#define MT7621_PLL_FMAX		(2500UL * MHZ)
++#define CON0_MT7621_RST_BAR	BIT(27)
++
++#define PLL_xtal(_id, _name, _reg, _pwr_reg, _en_mask, _flags, _pcwbits,\
++			_pd_reg, _pd_shift, _tuner_reg, _pcw_reg,	\
++			_pcw_shift, _div_table, _parent_name) {		\
++		.id = _id,						\
++		.name = _name,						\
++		.reg = _reg,						\
++		.pwr_reg = _pwr_reg,					\
++		.en_mask = _en_mask,					\
++		.flags = _flags,					\
++		.rst_bar_mask = CON0_MT7621_RST_BAR,			\
++		.fmax = MT7621_PLL_FMAX,				\
++		.pcwbits = _pcwbits,					\
++		.pd_reg = _pd_reg,					\
++		.pd_shift = _pd_shift,					\
++		.tuner_reg = _tuner_reg,				\
++		.pcw_reg = _pcw_reg,					\
++		.pcw_shift = _pcw_shift,				\
++		.div_table = _div_table,				\
++		.parent_name = _parent_name,				\
++	}
++
++#define PLL(_id, _name, _reg, _pwr_reg, _en_mask, _flags, _pcwbits,	\
++			_pd_reg, _pd_shift, _tuner_reg, _pcw_reg,	\
++			_pcw_shift)					\
++	PLL_xtal(_id, _name, _reg, _pwr_reg, _en_mask, _flags, _pcwbits,\
++		 _pd_reg, _pd_shift, _tuner_reg, _pcw_reg, _pcw_shift,  \
++		 NULL, "clkxtal")
++
++#define GATE_APMIXED(_id, _name, _parent, _shift) {			\
++		.id = _id,						\
++		.name = _name,						\
++		.parent_name = _parent,					\
++		.regs = &apmixed_cg_regs,				\
++		.shift = _shift,					\
++		.ops = &mtk_clk_gate_ops_no_setclr_inv,			\
++	}
++
++#define GATE_INFRA(_id, _name, _parent, _shift) {			\
++		.id = _id,						\
++		.name = _name,						\
++		.parent_name = _parent,					\
++		.regs = &infra_cg_regs,					\
++		.shift = _shift,					\
++		.ops = &mtk_clk_gate_ops_setclr,			\
++	}
++
++#define GATE_TOP0(_id, _name, _parent, _shift) {			\
++		.id = _id,						\
++		.name = _name,						\
++		.parent_name = _parent,					\
++		.regs = &top0_cg_regs,					\
++		.shift = _shift,					\
++		.ops = &mtk_clk_gate_ops_no_setclr,			\
++	}
++
++#define GATE_TOP1(_id, _name, _parent, _shift) {			\
++		.id = _id,						\
++		.name = _name,						\
++		.parent_name = _parent,					\
++		.regs = &top1_cg_regs,					\
++		.shift = _shift,					\
++		.ops = &mtk_clk_gate_ops_no_setclr,			\
++	}
++
++#define GATE_PERI0(_id, _name, _parent, _shift) {			\
++		.id = _id,						\
++		.name = _name,						\
++		.parent_name = _parent,					\
++		.regs = &peri0_cg_regs,					\
++		.shift = _shift,					\
++		.ops = &mtk_clk_gate_ops_setclr,			\
++	}
++
++#define GATE_PERI1(_id, _name, _parent, _shift) {			\
++		.id = _id,						\
++		.name = _name,						\
++		.parent_name = _parent,					\
++		.regs = &peri1_cg_regs,					\
++		.shift = _shift,					\
++		.ops = &mtk_clk_gate_ops_setclr,			\
++	}
++
++static DEFINE_SPINLOCK(mt7621_clk_lock);
++
++static const char * const infra_mux1_parents[] = {
++	"clkxtal",
++	"armpll",
++	"main_core_en",
++	"armpll"
++};
++
++static const char * const axi_parents[] = {
++	"clkxtal",
++	"syspll1_d2",
++	"syspll_d5",
++	"syspll1_d4",
++	"univpll_d5",
++	"univpll2_d2",
++	"univpll_d7"
++};
++
++static const char * const mem_parents[] = {
++	"clkxtal",
++	"dmpll_ck"
++};
++
++static const char * const ddrphycfg_parents[] = {
++	"clkxtal",
++	"syspll1_d8"
++};
++
++static const char * const eth_parents[] = {
++	"clkxtal",
++	"ddrpll",
++	"apll"
++};
++
++static const char * const pwm_parents[] = {
++	"clkxtal",
++	"univpll2_d4"
++};
++
++static const char * const f10m_ref_parents[] = {
++	"clkxtal",
++	"syspll4_d16"
++};
++
++static const char * const nfi_infra_parents[] = {
++	"clkxtal",
++	"clkxtal",
++	"clkxtal",
++	"clkxtal",
++	"clkxtal",
++	"clkxtal",
++	"clkxtal",
++	"clkxtal",
++	"univpll2_d8",
++	"syspll1_d8",
++	"univpll1_d8",
++	"syspll4_d2",
++	"univpll2_d4",
++	"univpll3_d2",
++	"syspll1_d4"
++};
++
++static const char * const flash_parents[] = {
++	"clkxtal",
++	"univpll_d80_d4",
++	"syspll2_d8",
++	"syspll3_d4",
++	"univpll3_d4",
++	"univpll1_d8",
++	"syspll2_d4",
++	"univpll2_d4"
++};
++
++static const char * const uart_parents[] = {
++	"clkxtal",
++	"univpll2_d8"
++};
++
++static const char * const spi0_parents[] = {
++	"clkxtal",
++	"syspll3_d2",
++	"clkxtal",
++	"syspll2_d4",
++	"syspll4_d2",
++	"univpll2_d4",
++	"univpll1_d8",
++	"clkxtal"
++};
++
++static const char * const spi1_parents[] = {
++	"clkxtal",
++	"syspll3_d2",
++	"clkxtal",
++	"syspll4_d4",
++	"syspll4_d2",
++	"univpll2_d4",
++	"univpll1_d8",
++	"clkxtal"
++};
++
++static const char * const msdc30_0_parents[] = {
++	"clkxtal",
++	"univpll2_d16",
++	"univ48m"
++};
++
++static const char * const a1sys_hp_parents[] = {
++	"clkxtal",
++	"aud1pll_ck",
++	"aud2pll_ck",
++	"clkxtal"
++};
++
++static const char * const intdir_parents[] = {
++	"clkxtal",
++	"syspll_d2",
++	"univpll_d2",
++	"sgmiipll_ck"
++};
++
++static const char * const aud_intbus_parents[] = {
++	"clkxtal",
++	"syspll1_d4",
++	"syspll4_d2",
++	"syspll3_d2"
++};
++
++static const char * const pmicspi_parents[] = {
++	"clkxtal",
++	"clk_null",
++	"clk_null",
++	"clk_null",
++	"clk_null",
++	"univpll2_d16"
++};
++
++static const char * const atb_parents[] = {
++	"clkxtal",
++	"syspll1_d2",
++	"syspll_d5"
++};
++
++static const char * const audio_parents[] = {
++	"clkxtal",
++	"syspll3_d4",
++	"syspll4_d4",
++	"univpll1_d16"
++};
++
++static const char * const usb20_parents[] = {
++	"clkxtal",
++	"univpll3_d4",
++	"syspll1_d8",
++	"clkxtal"
++};
++
++static const char * const aud1_parents[] = {
++	"clkxtal",
++	"aud1pll_ck"
++};
++
++static const char * const aud2_parents[] = {
++	"clkxtal",
++	"aud2pll_ck"
++};
++
++static const char * const asm_l_parents[] = {
++	"clkxtal",
++	"syspll_d5",
++	"univpll2_d2",
++	"univpll2_d4"
++};
++
++static const char * const apll1_ck_parents[] = {
++	"aud1_sel",
++	"aud2_sel"
++};
++
++static const char * const peribus_ck_parents[] = {
++	"syspll1_d8",
++	"syspll1_d4"
++};
++
++static const struct mtk_gate_regs apmixed_cg_regs = {
++	.set_ofs = 0x8,
++	.clr_ofs = 0x8,
++	.sta_ofs = 0x8,
++};
++
++static const struct mtk_gate_regs infra_cg_regs = {
++	.set_ofs = 0x40,
++	.clr_ofs = 0x44,
++	.sta_ofs = 0x48,
++};
++
++static const struct mtk_gate_regs top0_cg_regs = {
++	.set_ofs = 0x120,
++	.clr_ofs = 0x120,
++	.sta_ofs = 0x120,
++};
++
++static const struct mtk_gate_regs top1_cg_regs = {
++	.set_ofs = 0x128,
++	.clr_ofs = 0x128,
++	.sta_ofs = 0x128,
++};
++
++static const struct mtk_gate_regs peri0_cg_regs = {
++	.set_ofs = 0x8,
++	.clr_ofs = 0x10,
++	.sta_ofs = 0x18,
++};
++
++static const struct mtk_gate_regs peri1_cg_regs = {
++	.set_ofs = 0xC,
++	.clr_ofs = 0x14,
++	.sta_ofs = 0x1C,
++};
++
++static const struct mtk_pll_data plls[] = {
++	PLL(CLK_APMIXED_ARMPLL, "armpll", 0x0200, 0x020C, 0x00000001,
++	    PLL_AO, 21, 0x0204, 24, 0, 0x0204, 0),
++	PLL(CLK_APMIXED_MAINPLL, "mainpll", 0x0210, 0x021C, 0x00000001,
++	    HAVE_RST_BAR, 21, 0x0214, 24, 0, 0x0214, 0),
++	PLL(CLK_APMIXED_UNIV2PLL, "univ2pll", 0x0220, 0x022C, 0x00000001,
++	    HAVE_RST_BAR, 7, 0x0224, 24, 0, 0x0224, 14),
++	PLL(CLK_APMIXED_ETH1PLL, "eth1pll", 0x0300, 0x0310, 0x00000001,
++	    0, 21, 0x0300, 1, 0, 0x0304, 0),
++	PLL(CLK_APMIXED_ETH2PLL, "eth2pll", 0x0314, 0x0320, 0x00000001,
++	    0, 21, 0x0314, 1, 0, 0x0318, 0),
++	PLL(CLK_APMIXED_AUD1PLL, "aud1pll", 0x0324, 0x0330, 0x00000001,
++	    0, 31, 0x0324, 1, 0, 0x0328, 0),
++	PLL(CLK_APMIXED_AUD2PLL, "aud2pll", 0x0334, 0x0340, 0x00000001,
++	    0, 31, 0x0334, 1, 0, 0x0338, 0),
++	PLL(CLK_APMIXED_TRGPLL, "trgpll", 0x0344, 0x0354, 0x00000001,
++	    0, 21, 0x0344, 1, 0, 0x0348, 0),
++	PLL(CLK_APMIXED_SGMIPLL, "sgmipll", 0x0358, 0x0368, 0x00000001,
++	    0, 21, 0x0358, 1, 0, 0x035C, 0),
++};
++
++static const struct mtk_gate apmixed_clks[] = {
++	GATE_APMIXED(CLK_APMIXED_MAIN_CORE_EN, "main_core_en", "mainpll", 5),
++};
++
++static const struct mtk_gate infra_clks[] = {
++	GATE_INFRA(CLK_INFRA_DBGCLK_PD, "infra_dbgclk_pd", "axi_sel", 0),
++	GATE_INFRA(CLK_INFRA_TRNG, "trng_ck", "axi_sel", 2),
++	GATE_INFRA(CLK_INFRA_AUDIO_PD, "infra_audio_pd", "aud_intbus_sel", 5),
++	GATE_INFRA(CLK_INFRA_IRRX_PD, "infra_irrx_pd", "irrx_sel", 16),
++	GATE_INFRA(CLK_INFRA_APXGPT_PD, "infra_apxgpt_pd", "f10m_ref_sel", 18),
++	GATE_INFRA(CLK_INFRA_PMIC_PD, "infra_pmic_pd", "pmicspi_sel", 22),
++};
++
++static const struct mtk_fixed_clk top_fixed_clks[] = {
++	FIXED_CLK(CLK_TOP_TO_U2_PHY, "to_u2_phy", "clkxtal",
++		  31250000),
++};
++
++static const struct mtk_fixed_factor top_divs[] = {
++	FACTOR(CLK_TOP_TO_USB3_SYS, "to_usb3_sys", "eth1pll", 1, 4),
++	FACTOR(CLK_TOP_P1_1MHZ, "p1_1mhz", "eth1pll", 1, 500),
++	FACTOR(CLK_TOP_4MHZ, "free_run_4mhz", "eth1pll", 1, 125),
++	FACTOR(CLK_TOP_P0_1MHZ, "p0_1mhz", "eth1pll", 1, 500),
++	FACTOR(CLK_TOP_TXCLK_SRC_PRE, "txclk_src_pre", "sgmiipll_d2", 1, 1),
++	FACTOR(CLK_TOP_RTC, "rtc", "clkxtal", 1, 1024),
++	FACTOR(CLK_TOP_MEMPLL, "mempll", "clkxtal", 32, 1),
++	FACTOR(CLK_TOP_DMPLL, "dmpll_ck", "mempll", 1, 1),
++	FACTOR(CLK_TOP_SYSPLL_D2, "syspll_d2", "mainpll", 1, 2),
++	FACTOR(CLK_TOP_SYSPLL1_D2, "syspll1_d2", "mainpll", 1, 4),
++	FACTOR(CLK_TOP_SYSPLL1_D4, "syspll1_d4", "mainpll", 1, 8),
++	FACTOR(CLK_TOP_SYSPLL1_D8, "syspll1_d8", "mainpll", 1, 16),
++	FACTOR(CLK_TOP_SYSPLL2_D4, "syspll2_d4", "mainpll", 1, 12),
++	FACTOR(CLK_TOP_SYSPLL2_D8, "syspll2_d8", "mainpll", 1, 24),
++	FACTOR(CLK_TOP_SYSPLL_D5, "syspll_d5", "mainpll", 1, 5),
++	FACTOR(CLK_TOP_SYSPLL3_D2, "syspll3_d2", "mainpll", 1, 10),
++	FACTOR(CLK_TOP_SYSPLL3_D4, "syspll3_d4", "mainpll", 1, 20),
++	FACTOR(CLK_TOP_SYSPLL4_D2, "syspll4_d2", "mainpll", 1, 14),
++	FACTOR(CLK_TOP_SYSPLL4_D4, "syspll4_d4", "mainpll", 1, 28),
++	FACTOR(CLK_TOP_SYSPLL4_D16, "syspll4_d16", "mainpll", 1, 112),
++	FACTOR(CLK_TOP_UNIVPLL, "univpll", "univ2pll", 1, 2),
++	FACTOR(CLK_TOP_UNIVPLL_D2, "univpll_d2", "univpll", 1, 2),
++	FACTOR(CLK_TOP_UNIVPLL1_D2, "univpll1_d2", "univpll", 1, 4),
++	FACTOR(CLK_TOP_UNIVPLL1_D4, "univpll1_d4", "univpll", 1, 8),
++	FACTOR(CLK_TOP_UNIVPLL1_D8, "univpll1_d8", "univpll", 1, 16),
++	FACTOR(CLK_TOP_UNIVPLL1_D16, "univpll1_d16", "univpll", 1, 32),
++	FACTOR(CLK_TOP_UNIVPLL2_D2, "univpll2_d2", "univpll", 1, 6),
++	FACTOR(CLK_TOP_UNIVPLL2_D4, "univpll2_d4", "univpll", 1, 12),
++	FACTOR(CLK_TOP_UNIVPLL2_D8, "univpll2_d8", "univpll", 1, 24),
++	FACTOR(CLK_TOP_UNIVPLL2_D16, "univpll2_d16", "univpll", 1, 48),
++	FACTOR(CLK_TOP_UNIVPLL_D5, "univpll_d5", "univpll", 1, 5),
++	FACTOR(CLK_TOP_UNIVPLL3_D2, "univpll3_d2", "univpll", 1, 10),
++	FACTOR(CLK_TOP_UNIVPLL3_D4, "univpll3_d4", "univpll", 1, 20),
++	FACTOR(CLK_TOP_UNIVPLL3_D16, "univpll3_d16", "univpll", 1, 80),
++	FACTOR(CLK_TOP_UNIVPLL_D7, "univpll_d7", "univpll", 1, 7),
++	FACTOR(CLK_TOP_UNIVPLL_D80_D4, "univpll_d80_d4", "univpll", 1, 320),
++	FACTOR(CLK_TOP_UNIV48M, "univ48m", "univpll", 1, 25),
++	FACTOR(CLK_TOP_SGMIIPLL, "sgmiipll_ck", "sgmipll", 1, 1),
++	FACTOR(CLK_TOP_SGMIIPLL_D2, "sgmiipll_d2", "sgmipll", 1, 2),
++	FACTOR(CLK_TOP_AUD1PLL, "aud1pll_ck", "aud1pll", 1, 1),
++	FACTOR(CLK_TOP_AUD2PLL, "aud2pll_ck", "aud2pll", 1, 1),
++	FACTOR(CLK_TOP_AUD_I2S2_MCK, "aud_i2s2_mck", "i2s2_mck_sel", 1, 2),
++	FACTOR(CLK_TOP_TO_USB3_REF, "to_usb3_ref", "univpll2_d4", 1, 4),
++	FACTOR(CLK_TOP_PCIE1_MAC_EN, "pcie1_mac_en", "univpll1_d4", 1, 1),
++	FACTOR(CLK_TOP_PCIE0_MAC_EN, "pcie0_mac_en", "univpll1_d4", 1, 1),
++	FACTOR(CLK_TOP_ETH_500M, "eth_500m", "eth1pll", 1, 1),
++};
++
++static const struct mtk_gate top_clks[] = {
++	/* TOP0 */
++	GATE_TOP0(CLK_TOP_APLL1_DIV_PD, "apll1_ck_div_pd", "apll1_ck_div", 0),
++	GATE_TOP0(CLK_TOP_APLL2_DIV_PD, "apll2_ck_div_pd", "apll2_ck_div", 1),
++	GATE_TOP0(CLK_TOP_I2S0_MCK_DIV_PD, "i2s0_mck_div_pd", "i2s0_mck_div",
++		  2),
++	GATE_TOP0(CLK_TOP_I2S1_MCK_DIV_PD, "i2s1_mck_div_pd", "i2s1_mck_div",
++		  3),
++	GATE_TOP0(CLK_TOP_I2S2_MCK_DIV_PD, "i2s2_mck_div_pd", "i2s2_mck_div",
++		  4),
++	GATE_TOP0(CLK_TOP_I2S3_MCK_DIV_PD, "i2s3_mck_div_pd", "i2s3_mck_div",
++		  5),
++
++	/* TOP1 */
++	GATE_TOP1(CLK_TOP_A1SYS_HP_DIV_PD, "a1sys_div_pd", "a1sys_div", 0),
++	GATE_TOP1(CLK_TOP_A2SYS_HP_DIV_PD, "a2sys_div_pd", "a2sys_div", 16),
++};
++
++static const struct mtk_clk_divider top_adj_divs[] = {
++	DIV_ADJ(CLK_TOP_APLL1_DIV, "apll1_ck_div", "apll1_ck_sel",
++		0x120, 24, 3),
++	DIV_ADJ(CLK_TOP_APLL2_DIV, "apll2_ck_div", "apll2_ck_sel",
++		0x120, 28, 3),
++	DIV_ADJ(CLK_TOP_I2S0_MCK_DIV, "i2s0_mck_div", "i2s0_mck_sel",
++		0x124, 0, 7),
++	DIV_ADJ(CLK_TOP_I2S1_MCK_DIV, "i2s1_mck_div", "i2s1_mck_sel",
++		0x124, 8, 7),
++	DIV_ADJ(CLK_TOP_I2S2_MCK_DIV, "i2s2_mck_div", "aud_i2s2_mck",
++		0x124, 16, 7),
++	DIV_ADJ(CLK_TOP_I2S3_MCK_DIV, "i2s3_mck_div", "i2s3_mck_sel",
++		0x124, 24, 7),
++	DIV_ADJ(CLK_TOP_A1SYS_HP_DIV, "a1sys_div", "a1sys_hp_sel",
++		0x128, 8, 7),
++	DIV_ADJ(CLK_TOP_A2SYS_HP_DIV, "a2sys_div", "a2sys_hp_sel",
++		0x128, 24, 7),
++};
++
++static const struct mtk_gate peri_clks[] = {
++	/* PERI0 */
++	GATE_PERI0(CLK_PERI_THERM_PD, "peri_therm_pd", "axi_sel", 1),
++	GATE_PERI0(CLK_PERI_PWM1_PD, "peri_pwm1_pd", "clkxtal", 2),
++	GATE_PERI0(CLK_PERI_PWM2_PD, "peri_pwm2_pd", "clkxtal", 3),
++	GATE_PERI0(CLK_PERI_PWM3_PD, "peri_pwm3_pd", "clkxtal", 4),
++	GATE_PERI0(CLK_PERI_PWM4_PD, "peri_pwm4_pd", "clkxtal", 5),
++	GATE_PERI0(CLK_PERI_PWM5_PD, "peri_pwm5_pd", "clkxtal", 6),
++	GATE_PERI0(CLK_PERI_PWM6_PD, "peri_pwm6_pd", "clkxtal", 7),
++	GATE_PERI0(CLK_PERI_PWM7_PD, "peri_pwm7_pd", "clkxtal", 8),
++	GATE_PERI0(CLK_PERI_PWM_PD, "peri_pwm_pd", "clkxtal", 9),
++	GATE_PERI0(CLK_PERI_AP_DMA_PD, "peri_ap_dma_pd", "axi_sel", 12),
++	GATE_PERI0(CLK_PERI_MSDC30_0_PD, "peri_msdc30_0", "msdc30_0_sel", 13),
++	GATE_PERI0(CLK_PERI_MSDC30_1_PD, "peri_msdc30_1", "msdc30_1_sel", 14),
++	GATE_PERI0(CLK_PERI_UART0_PD, "peri_uart0_pd", "axi_sel", 17),
++	GATE_PERI0(CLK_PERI_UART1_PD, "peri_uart1_pd", "axi_sel", 18),
++	GATE_PERI0(CLK_PERI_UART2_PD, "peri_uart2_pd", "axi_sel", 19),
++	GATE_PERI0(CLK_PERI_UART3_PD, "peri_uart3_pd", "axi_sel", 20),
++	GATE_PERI0(CLK_PERI_UART4_PD, "peri_uart4_pd", "axi_sel", 21),
++	GATE_PERI0(CLK_PERI_BTIF_PD, "peri_btif_pd", "axi_sel", 22),
++	GATE_PERI0(CLK_PERI_I2C0_PD, "peri_i2c0_pd", "axi_sel", 23),
++	GATE_PERI0(CLK_PERI_I2C1_PD, "peri_i2c1_pd", "axi_sel", 24),
++	GATE_PERI0(CLK_PERI_I2C2_PD, "peri_i2c2_pd", "axi_sel", 25),
++	GATE_PERI0(CLK_PERI_SPI1_PD, "peri_spi1_pd", "spi1_sel", 26),
++	GATE_PERI0(CLK_PERI_AUXADC_PD, "peri_auxadc_pd", "clkxtal", 27),
++	GATE_PERI0(CLK_PERI_SPI0_PD, "peri_spi0_pd", "spi0_sel", 28),
++	GATE_PERI0(CLK_PERI_SNFI_PD, "peri_snfi_pd", "nfi_infra_sel", 29),
++	GATE_PERI0(CLK_PERI_NFI_PD, "peri_nfi_pd", "axi_sel", 30),
++	GATE_PERI0(CLK_PERI_NFIECC_PD, "peri_nfiecc_pd", "axi_sel", 31),
++
++	/* PERI1 */
++	GATE_PERI1(CLK_PERI_FLASH_PD, "peri_flash_pd", "flash_sel", 1),
++	GATE_PERI1(CLK_PERI_IRTX_PD, "peri_irtx_pd", "irtx_sel", 2),
++};
++
++static struct mtk_composite infra_muxes[] __initdata = {
++	MUX(CLK_INFRA_MUX1_SEL, "infra_mux1_sel", infra_mux1_parents,
++	    0x000, 2, 2),
++};
++
++static struct mtk_composite top_muxes[] = {
++	/* CLK_CFG_0 */
++	MUX_GATE(CLK_TOP_ETH_SEL, "eth_sel", eth_parents,
++		 0x040, 24, 3, 31),
++};
++
++static struct mtk_composite peri_muxes[] = {
++	/* PERI_GLOBALCON_CKSEL */
++	MUX(CLK_PERIBUS_SEL, "peribus_ck_sel", peribus_ck_parents, 0x05C, 0, 1),
++};
++
++static int mtk_topckgen_init(struct platform_device *pdev)
++{
++	struct clk_onecell_data *clk_data;
++	void __iomem *base;
++	struct device_node *node = pdev->dev.of_node;
++	struct resource *res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
++
++	base = devm_ioremap_resource(&pdev->dev, res);
++	if (IS_ERR(base))
++		return PTR_ERR(base);
++
++	clk_data = mtk_alloc_clk_data(CLK_TOP_NR_CLK);
++
++	mtk_clk_register_fixed_clks(top_fixed_clks, ARRAY_SIZE(top_fixed_clks),
++				    clk_data);
++
++	mtk_clk_register_factors(top_divs, ARRAY_SIZE(top_divs),
++				 clk_data);
++
++	mtk_clk_register_composites(top_muxes, ARRAY_SIZE(top_muxes),
++				    base, &mt7621_clk_lock, clk_data);
++
++	mtk_clk_register_dividers(top_adj_divs, ARRAY_SIZE(top_adj_divs),
++				  base, &mt7621_clk_lock, clk_data);
++
++	mtk_clk_register_gates(node, top_clks, ARRAY_SIZE(top_clks),
++			       clk_data);
++
++	clk_prepare_enable(clk_data->clks[CLK_TOP_AXI_SEL]);
++	clk_prepare_enable(clk_data->clks[CLK_TOP_MEM_SEL]);
++	clk_prepare_enable(clk_data->clks[CLK_TOP_DDRPHYCFG_SEL]);
++
++	return of_clk_add_provider(node, of_clk_src_onecell_get, clk_data);
++}
++
++static const struct of_device_id of_match_clk_mt7621[] = {
++	{
++		.compatible = "mediatek,mt7621-topckgen",
++		.data = mtk_topckgen_init,
++	}, {
++		/* sentinel */
++	}
++};
++
++static int clk_mt7621_probe(struct platform_device *pdev)
++{
++	int (*clk_init)(struct platform_device *);
++	int r;
++	
++	dev_err(&pdev->dev, "clk_mt7621_probe\n");
++
++	clk_init = of_device_get_match_data(&pdev->dev);
++	if (!clk_init) {
++		dev_err(&pdev->dev, "clk_mt7621_probe failed\n");
++		return -EINVAL;
++	};
++    
++	r = clk_init(pdev);
++	if (r)
++		dev_err(&pdev->dev,
++			"could not register clock provider: %s: %d\n",
++			pdev->name, r);
++
++	return r;
++}
++
++static struct platform_driver clk_mt7621_drv = {
++	.probe = clk_mt7621_probe,
++	.driver = {
++		.name = "clk-mt7621",
++		.of_match_table = of_match_clk_mt7621,
++	},
++};
++
++static int clk_mt7621_init(void)
++{
++	return platform_driver_register(&clk_mt7621_drv);
++}
++
++arch_initcall(clk_mt7621_init);
+diff --git a/drivers/net/Makefile b/drivers/net/Makefile
+index 676a75f4182a..6173b380be63 100644
+--- a/drivers/net/Makefile
++++ b/drivers/net/Makefile
+@@ -42,6 +42,7 @@ obj-$(CONFIG_CAIF) += caif/
+ obj-$(CONFIG_CAN) += can/
+ obj-$(CONFIG_ETRAX_ETHERNET) += cris/
+ obj-$(CONFIG_NET_DSA) += dsa/
++obj-y += dsa/
+ obj-$(CONFIG_ETHERNET) += ethernet/
+ obj-$(CONFIG_FDDI) += fddi/
+ obj-$(CONFIG_HIPPI) += hippi/
+diff --git a/drivers/net/dsa/Makefile b/drivers/net/dsa/Makefile
+index 15c2a831edf1..f8f633828146 100644
+--- a/drivers/net/dsa/Makefile
++++ b/drivers/net/dsa/Makefile
+@@ -6,6 +6,7 @@ ifdef CONFIG_NET_DSA_LOOP
+ obj-$(CONFIG_FIXED_PHY)		+= dsa_loop_bdinfo.o
+ endif
+ obj-$(CONFIG_NET_DSA_MT7530)	+= mt7530.o
++obj-y				+= mt7530.o
+ obj-$(CONFIG_NET_DSA_MV88E6060) += mv88e6060.o
+ obj-$(CONFIG_NET_DSA_QCA8K)	+= qca8k.o
+ obj-$(CONFIG_NET_DSA_SMSC_LAN9303) += lan9303-core.o
+diff --git a/drivers/net/ethernet/mediatek/Kconfig b/drivers/net/ethernet/mediatek/Kconfig
+index f9149d2a4694..43656f961891 100644
+--- a/drivers/net/ethernet/mediatek/Kconfig
++++ b/drivers/net/ethernet/mediatek/Kconfig
+@@ -1,6 +1,6 @@
+ config NET_VENDOR_MEDIATEK
+ 	bool "MediaTek ethernet driver"
+-	depends on ARCH_MEDIATEK
++	depends on ARCH_MEDIATEK || SOC_MT7621
+ 	---help---
+ 	  If you have a Mediatek SoC with ethernet, say Y.
+ 
+diff --git a/drivers/net/ethernet/mediatek/mtk_eth_soc.c b/drivers/net/ethernet/mediatek/mtk_eth_soc.c
+index 4971ce0c52af..c9883093b8f8 100644
+--- a/drivers/net/ethernet/mediatek/mtk_eth_soc.c
++++ b/drivers/net/ethernet/mediatek/mtk_eth_soc.c
+@@ -149,6 +149,7 @@ static void mtk_gmac0_rgmii_adjust(struct mtk_eth *eth, int speed)
+ 		INTF_MODE_RGMII_1000 : INTF_MODE_RGMII_10_100;
+ 	mtk_w32(eth, val, INTF_MODE);
+ 
++#ifndef CONFIG_SOC_MT7621
+ 	regmap_update_bits(eth->ethsys, ETHSYS_CLKCFG0,
+ 			   ETHSYS_TRGMII_CLK_SEL362_5,
+ 			   ETHSYS_TRGMII_CLK_SEL362_5);
+@@ -157,6 +158,7 @@ static void mtk_gmac0_rgmii_adjust(struct mtk_eth *eth, int speed)
+ 	ret = clk_set_rate(eth->clks[MTK_CLK_TRGPLL], val);
+ 	if (ret)
+ 		dev_err(eth->dev, "Failed to set trgmii pll: %d\n", ret);
++#endif
+ 
+ 	val = (speed == SPEED_1000) ?
+ 		RCK_CTRL_RGMII_1000 : RCK_CTRL_RGMII_10_100;
+@@ -167,6 +169,7 @@ static void mtk_gmac0_rgmii_adjust(struct mtk_eth *eth, int speed)
+ 	mtk_w32(eth, val, TRGMII_TCK_CTRL);
+ }
+ 
++#ifndef CONFIG_SOC_MT7621
+ static void mtk_gmac_sgmii_hw_setup(struct mtk_eth *eth, int mac_id)
+ {
+ 	u32 val;
+@@ -207,6 +210,7 @@ static void mtk_gmac_sgmii_hw_setup(struct mtk_eth *eth, int mac_id)
+ 		dev_info(eth->dev, "setup gmac1 going through sgmii");
+ 	}
+ }
++#endif
+ 
+ static void mtk_phy_link_adjust(struct net_device *dev)
+ {
+@@ -324,10 +328,12 @@ static int mtk_phy_connect(struct net_device *dev)
+ 	case PHY_INTERFACE_MODE_RGMII_ID:
+ 	case PHY_INTERFACE_MODE_RGMII:
+ 		break;
++#ifndef CONFIG_SOC_MT7621
+ 	case PHY_INTERFACE_MODE_SGMII:
+ 		if (MTK_HAS_CAPS(eth->soc->caps, MTK_SGMII))
+ 			mtk_gmac_sgmii_hw_setup(eth, mac->id);
+ 		break;
++#endif
+ 	case PHY_INTERFACE_MODE_MII:
+ 		mac->ge_mode = 1;
+ 		break;
+@@ -1969,6 +1975,23 @@ static int mtk_hw_init(struct mtk_eth *eth)
+ 	}
+ 	regmap_write(eth->ethsys, ETHSYS_SYSCFG0, val);
+ 
++#ifdef CONFIG_SOC_MT7621
++
++#define SYSC_PAD_RGMII2_MDIO	0x58
++#define SYSC_GPIO_MODE	0x60
++#define SYSC_REG_CFG1	0x14
++	printk("MT7621: GE2: Pininit\n");
++
++	/* reduce RGMII2 PAD driving strength */
++	regmap_read(eth->ethsys, SYSC_PAD_RGMII2_MDIO, &val);
++	val &= ~(3 << 4);
++	regmap_write(eth->ethsys, SYSC_PAD_RGMII2_MDIO, val);
++	
++	/* gpio mux - RGMII1&RGMII2=Normal mode, set GMAC1,2 RGMII mode  */
++	regmap_read(eth->ethsys, SYSC_GPIO_MODE, &val);
++	val &= ~(BIT(14) | BIT(15) | 3 << 12 | 3 << 14);
++	regmap_write(eth->ethsys, SYSC_GPIO_MODE, val);
++#else
+ 	/* Set GE2 driving and slew rate */
+ 	regmap_write(eth->pctl, GPIO_DRV_SEL10, 0xa00);
+ 
+@@ -1977,6 +2000,7 @@ static int mtk_hw_init(struct mtk_eth *eth)
+ 
+ 	/* set GE2 TUNE */
+ 	regmap_write(eth->pctl, GPIO_BIAS_CTRL, 0x0);
++#endif
+ 
+ 	/* Set linkdown as the default for each GMAC. Its own MCR would be set
+ 	 * up with the more appropriate value when mtk_phy_link_adjust call is
+@@ -2544,8 +2568,10 @@ static int mtk_probe(struct platform_device *pdev)
+ 	spin_lock_init(&eth->tx_irq_lock);
+ 	spin_lock_init(&eth->rx_irq_lock);
+ 
++
+ 	eth->ethsys = syscon_regmap_lookup_by_phandle(pdev->dev.of_node,
+ 						      "mediatek,ethsys");
++
+ 	if (IS_ERR(eth->ethsys)) {
+ 		dev_err(&pdev->dev, "no ethsys regmap found\n");
+ 		return PTR_ERR(eth->ethsys);
+@@ -2561,12 +2587,14 @@ static int mtk_probe(struct platform_device *pdev)
+ 		}
+ 	}
+ 
++//#ifndef CONFIG_SOC_MT7621
+ 	eth->pctl = syscon_regmap_lookup_by_phandle(pdev->dev.of_node,
+ 						    "mediatek,pctl");
+ 	if (IS_ERR(eth->pctl)) {
+ 		dev_err(&pdev->dev, "no pctl regmap found\n");
+ 		return PTR_ERR(eth->pctl);
+ 	}
++//#endif
+ 
+ 	for (i = 0; i < 3; i++) {
+ 		eth->irq[i] = platform_get_irq(pdev, i);
+@@ -2575,6 +2603,7 @@ static int mtk_probe(struct platform_device *pdev)
+ 			return -ENXIO;
+ 		}
+ 	}
++
+ 	for (i = 0; i < ARRAY_SIZE(eth->clks); i++) {
+ 		eth->clks[i] = devm_clk_get(eth->dev,
+ 					    mtk_clks_source_name[i]);
+@@ -2694,6 +2723,11 @@ static const struct mtk_soc_data mt2701_data = {
+ 	.required_clks = MT7623_CLKS_BITMAP
+ };
+ 
++static const struct mtk_soc_data mt7621_data = {
++	.caps = 0,
++	.required_clks = MT7621_CLKS_BITMAP
++};
++
+ static const struct mtk_soc_data mt7622_data = {
+ 	.caps = MTK_DUAL_GMAC_SHARED_SGMII | MTK_GMAC1_ESW,
+ 	.required_clks = MT7622_CLKS_BITMAP
+@@ -2706,6 +2740,7 @@ static const struct mtk_soc_data mt7623_data = {
+ 
+ const struct of_device_id of_mtk_match[] = {
+ 	{ .compatible = "mediatek,mt2701-eth", .data = &mt2701_data},
++	{ .compatible = "mediatek,mt7621-eth", .data = &mt7621_data},
+ 	{ .compatible = "mediatek,mt7622-eth", .data = &mt7622_data},
+ 	{ .compatible = "mediatek,mt7623-eth", .data = &mt7623_data},
+ 	{},
+diff --git a/drivers/net/ethernet/mediatek/mtk_eth_soc.h b/drivers/net/ethernet/mediatek/mtk_eth_soc.h
+index 5a2c618cc95a..0e0a53316923 100644
+--- a/drivers/net/ethernet/mediatek/mtk_eth_soc.h
++++ b/drivers/net/ethernet/mediatek/mtk_eth_soc.h
+@@ -364,18 +364,27 @@
+ #define ETHSYS_CHIPID4_7	0x4
+ #define MT7623_ETH		7623
+ #define MT7622_ETH		7622
++#define MT7621_ETH		7621
+ 
+ /* ethernet subsystem config register */
+ #define ETHSYS_SYSCFG0		0x14
+ #define SYSCFG0_GE_MASK		0x3
+ #define SYSCFG0_GE_MODE(x, y)	(x << (12 + (y * 2)))
++
++#ifndef CONFIG_SOC_MT7621
+ #define SYSCFG0_SGMII_MASK	(3 << 8)
+ #define SYSCFG0_SGMII_GMAC1	((2 << 8) & GENMASK(9, 8))
+ #define SYSCFG0_SGMII_GMAC2	((3 << 8) & GENMASK(9, 8))
++#endif
+ 
+ /* ethernet subsystem clock register */
+ #define ETHSYS_CLKCFG0		0x2c
++
++#ifdef CONFIG_SOC_MT7621
++#define ETHSYS_TRGMII_CLK_SEL	( BIT(5) | BIT(6) )
++#else
+ #define ETHSYS_TRGMII_CLK_SEL362_5	BIT(11)
++#endif
+ 
+ /* ethernet reset control register */
+ #define ETHSYS_RSTCTRL		0x34
+@@ -489,6 +498,8 @@ enum mtk_clks_map {
+ 				 BIT(MTK_CLK_SGMII_CDR_FB) | \
+ 				 BIT(MTK_CLK_SGMII_CK) | \
+ 				 BIT(MTK_CLK_ETH2PLL))
++#define MT7621_CLKS_BITMAP	(BIT(MTK_CLK_ETHIF) | BIT(MTK_CLK_ESW) )
++
+ enum mtk_dev_state {
+ 	MTK_HW_INIT,
+ 	MTK_RESETTING
+diff --git a/include/dt-bindings/clock/mt7621-clk.h b/include/dt-bindings/clock/mt7621-clk.h
+new file mode 100644
+index 000000000000..7e6b66a9e644
+--- /dev/null
++++ b/include/dt-bindings/clock/mt7621-clk.h
+@@ -0,0 +1,37 @@
++/*
++ * Copyright (c) 2017 MediaTek Inc.
++ * Author: Chen Zhong <chen.zhong@mediatek.com>
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License version 2 as
++ * published by the Free Software Foundation.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ */
++
++#ifndef _DT_BINDINGS_CLK_MT7621_H
++#define _DT_BINDINGS_CLK_MT7621_H
++
++/* FIXED */
++
++#define CLK_TOP_XTAL			0
++#define CLK_TOP_ETH_500M		1
++#define CLK_TOP_ETH_SEL			2
++#define CLK_TOP_APLL_SEL		3
++#define CLK_TOP_NR_CLK			4
++
++/* ETHSYS */
++
++#define CLK_ETHSYS_HSDMA		1
++#define CLK_ETHSYS_ESW			2
++#define CLK_ETHSYS_GDMA			3
++#define CLK_ETHSYS_I2C			4
++#define CLK_ETHSYS_ETH			5
++#define CLK_ETHSYS_CRYPTO		6
++#define CLK_ETHSYS_NR			7
++
++#endif /* _DT_BINDINGS_CLK_MT7621_H */
++
