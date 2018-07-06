@@ -406,9 +406,7 @@
 			     "syscon";
 		reg = <0x1e100000 0xe000>;
 		interrupt-parent = <&gic>;
-		interrupts = <GIC_SHARED 3 IRQ_TYPE_LEVEL_HIGH>,
-			     <GIC_SHARED 11 IRQ_TYPE_LEVEL_HIGH>,
-			     <GIC_SHARED 13 IRQ_TYPE_LEVEL_HIGH>;
+		interrupts = <GIC_SHARED 3 IRQ_TYPE_LEVEL_HIGH>;
 		clocks = <&ethsys CLK_ETHSYS_ETH>,
 			 <&ethsys CLK_ETHSYS_ESW>;
 		clock-names = "ethif", "esw";

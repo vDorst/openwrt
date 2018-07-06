@@ -379,7 +379,7 @@ ramips_setup_interfaces()
 			"0:lan:2" "1:lan:1" "4:wan" "6@eth0"
 		;;
 	ubnt-erx-sfp)
-		ucidef_set_interface_lan "lan0 lan1 lan2 lan3 lan4"
+		ucidef_set_interface_lan "lan0 lan1 lan2 lan3"
 		ucidef_set_interface_wan "wan"
 		;;
 	*)
