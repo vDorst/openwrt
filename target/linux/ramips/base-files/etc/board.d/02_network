@@ -379,8 +379,8 @@ ramips_setup_interfaces()
 			"0:lan:2" "1:lan:1" "4:wan" "6@eth0"
 		;;
 	ubnt-erx-sfp)
-		ucidef_set_interface_lan "lan0 lan1 lan2 lan3"
-		ucidef_set_interface_wan "wan"
+		ucidef_set_interface_lan "lan0 lan1 lan2 lan3 lan4"
+		ucidef_set_interface_wan eth1
 		;;
 	*)
 		RT3X5X=`cat /proc/cpuinfo | egrep "(RT3.5|RT5350)"`
