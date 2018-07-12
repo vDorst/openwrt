@@ -47,8 +47,6 @@
 		#address-cells = <1>;
 		#size-cells = <0>;
 	};
-
-
 };
 
 &gdma {
@@ -61,11 +59,10 @@
 
 &eth {
 	status = "okay";
-	mtd-mac-address = <&factory 0x22>;
-	mtd-mac-address-increment = <1>;
 
 	gmac0: mac@0 {
 		compatible = "mediatek,eth-mac";
+		mtd-mac-address = <&factory 0x22>;
 		reg = <0>;
 		phy-mode = "rgmii";
 
@@ -78,20 +75,24 @@
 
 	gmac1: mac@1 {
 		compatible = "mediatek,eth-mac";
+		mtd-mac-address = <&factory 0x22>;
+		mtd-mac-address-increment = <1>;
 		reg = <1>;
-		phy-mode = "rgmii-rxid";
-		phy-handle = <&phy5>;
+		phy-mode = "rgmii";
+		phy-handle = <&ephy5>;
 	};
 
 	mdio: mdio-bus {
 		#address-cells = <1>;
 		#size-cells = <0>;
-		phy5: ethernet-phy@7 {
+		ephy5: ethernet-phy@7 {
 			reg = <7>;
 			phy-mode = "rgmii-rxid";
 		};
 	};
 };
+
+
 
 &mt7530 {
 	compatible = "mediatek,mt7530";
