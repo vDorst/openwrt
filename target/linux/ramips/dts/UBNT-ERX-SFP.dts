@@ -8,7 +8,7 @@
 	model = "UBNT-ERX-SFP";
 	compatible = "ubiquiti,edgerouterx-sfp", "mediatek,mt7621-soc";
 
-	i2c-gpio {
+	i2c0: i2c-gpio {
 		compatible = "i2c-gpio";
 		gpios = <&gpio0 3 GPIO_ACTIVE_HIGH /* sda */
 		         &gpio0 4 GPIO_ACTIVE_HIGH /* scl */
@@ -16,9 +16,24 @@
 		#address-cells = <1>;
 		#size-cells = <0>;
 
-		pca9555@25 {
+		expander0: pca9555@25 {
 			compatible = "pca9555";
+			gpio-controller;
+			#gpio-cells = <2>;
 			reg = <0x25>;
 		};
 	};
+
+	sfp: sfp {
+		compatible = "sff,sfp";
+		i2c-bus = <&i2c0>;
+		mod-def0-gpio = <&expander0 5 GPIO_ACTIVE_LOW>;
+		maximum-power-milliwatt = <1000>;
+	};
+
+};
+
+&gmac1 {
+	managed = "in-band-status";
+	sfp = <&sfp>;
 };
