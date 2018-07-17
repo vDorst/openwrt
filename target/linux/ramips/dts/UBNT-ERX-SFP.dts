@@ -24,16 +24,25 @@
 		};
 	};
 
-	sfp: sfp {
+	leds {
+		compatible = "gpio-leds";
+
+		sfpclk {
+			gpios = <&gpio0 7 GPIO_ACTIVE_LOW>;
+			default-state = "on";
+		};
+	};
+
+	sfp5: sfp {
 		compatible = "sff,sfp";
 		i2c-bus = <&i2c0>;
 		mod-def0-gpio = <&expander0 5 GPIO_ACTIVE_LOW>;
 		maximum-power-milliwatt = <1000>;
 	};
-
 };
 
 &gmac1 {
-	managed = "in-band-status";
-	sfp = <&sfp>;
+	/* managed = "in-band-status"; */
+	sfp = <&sfp5>;
 };
+
