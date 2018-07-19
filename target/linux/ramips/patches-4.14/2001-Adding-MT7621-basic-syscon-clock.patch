@@ -1,7 +1,7 @@
-From 80ddc3b0b63accc2b23fdcce695a23f3f6bb4af1 Mon Sep 17 00:00:00 2001
+From b18bd238bd97d92f380cf5cce318dc28598dfe39 Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?Ren=C3=A9=20van=20Dorst?= <opensource@vdorst.com>
 Date: Thu, 19 Jul 2018 15:57:42 +0200
-Subject: [PATCH 2001/2002] Adding MT7621 basic syscon clock.
+Subject: [PATCH 2001/2003] Adding MT7621 basic syscon clock.
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
 Content-Transfer-Encoding: 8bit
@@ -10,10 +10,11 @@ Signed-off-by: René van Dorst <opensource@vdorst.com>
 ---
  arch/mips/ralink/Kconfig               |   2 +
  drivers/clk/mediatek/Kconfig           |  16 +
+ drivers/clk/mediatek/Makefile          |   1 +
  drivers/clk/mediatek/clk-mt7621-eth.c  | 108 +++++
  drivers/clk/mediatek/clk-mt7621.c      | 589 +++++++++++++++++++++++++
  include/dt-bindings/clock/mt7621-clk.h |  37 ++
- 5 files changed, 752 insertions(+)
+ 6 files changed, 753 insertions(+)
  create mode 100644 drivers/clk/mediatek/clk-mt7621-eth.c
  create mode 100644 drivers/clk/mediatek/clk-mt7621.c
  create mode 100644 include/dt-bindings/clock/mt7621-clk.h
@@ -32,7 +33,7 @@ index e8c699d24e28..1addc7466982 100644
  
  choice
 diff --git a/drivers/clk/mediatek/Kconfig b/drivers/clk/mediatek/Kconfig
-index 1f9ea0f21df1..77aae573bfe4 100644
+index 1f9ea0f21df1..620890c4283d 100644
 --- a/drivers/clk/mediatek/Kconfig
 +++ b/drivers/clk/mediatek/Kconfig
 @@ -181,4 +181,20 @@ config COMMON_CLK_MT8173
@@ -40,10 +41,11 @@ index 1f9ea0f21df1..77aae573bfe4 100644
  	---help---
  	  This driver supports MediaTek MT8173 clocks.
 +
+ endmenu
++
 +config COMMON_CLK_MT7621
 +	bool "Clock driver for Mediatek MT7621"
 +	depends on SOC_MT7621 || COMPILE_TEST
-+	select COMMON_CLK_MEDIATEK
 +	default SOC_MT7621
 +	---help---
 +	  This driver supports Mediatek MT7621 basic clocks.
@@ -51,11 +53,22 @@ index 1f9ea0f21df1..77aae573bfe4 100644
 +config COMMON_CLK_MT7621_ETHSYS
 +	bool "Clock driver for Mediatek MT7621 ethsys"
 +	depends on COMMON_CLK_MT7621
-+	depends on MFD_SYSCON
++	default SOC_MT7621
++	select MFD_SYSCON
 +	---help---
 +	  This driver supports Mediatek MT7621 ethsys clocks.
-+
- endmenu
+diff --git a/drivers/clk/mediatek/Makefile b/drivers/clk/mediatek/Makefile
+index 5160fdc4bbb8..3d0c8070fb13 100644
+--- a/drivers/clk/mediatek/Makefile
++++ b/drivers/clk/mediatek/Makefile
+@@ -20,6 +20,7 @@ obj-$(CONFIG_COMMON_CLK_MT2712_MFGCFG) += clk-mt2712-mfg.o
+ obj-$(CONFIG_COMMON_CLK_MT2712_MMSYS) += clk-mt2712-mm.o
+ obj-$(CONFIG_COMMON_CLK_MT2712_VDECSYS) += clk-mt2712-vdec.o
+ obj-$(CONFIG_COMMON_CLK_MT2712_VENCSYS) += clk-mt2712-venc.o
++obj-$(CONFIG_COMMON_CLK_MT7621_ETHSYS) += clk-mtk.o clk-gate.o reset.o clk-mt7621-eth.o
+ obj-$(CONFIG_COMMON_CLK_MT7622) += clk-mt7622.o
+ obj-$(CONFIG_COMMON_CLK_MT7622_ETHSYS) += clk-mt7622-eth.o
+ obj-$(CONFIG_COMMON_CLK_MT7622_HIFSYS) += clk-mt7622-hif.o
 diff --git a/drivers/clk/mediatek/clk-mt7621-eth.c b/drivers/clk/mediatek/clk-mt7621-eth.c
 new file mode 100644
 index 000000000000..678d33900a0e

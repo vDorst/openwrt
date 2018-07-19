@@ -1,7 +1,7 @@
 From ebead4af1e8c4f54d2d05fe020195f11bfec6805 Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?Ren=C3=A9=20van=20Dorst?= <opensource@vdorst.com>
 Date: Thu, 26 Jul 2018 13:13:15 +0200
-Subject: [PATCH 2000/2002] Patches for mt7623 tree
+Subject: [PATCH 2000/2003] Patches for mt7623 tree
 
 ---
  drivers/clk/Makefile                        |    2 +-
