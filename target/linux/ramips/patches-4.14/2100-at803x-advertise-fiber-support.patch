@@ -1,0 +1,99 @@
+From 3e45b08c39176b29b6a2394cd41fbbdebe1ab70b Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Ren=C3=A9=20van=20Dorst?= <opensource@vdorst.com>
+Date: Wed, 25 Jul 2018 13:52:56 +0200
+Subject: [PATCH] at803x: advertise fiber support.
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Also adding ethtool support.
+Signed-off-by: René van Dorst <opensource@vdorst.com>
+---
+ drivers/net/phy/at803x.c | 51 +++++++++++++++++++++++++++++++++++++++-
+ 1 file changed, 50 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/net/phy/at803x.c b/drivers/net/phy/at803x.c
+index 584bf34ef721..b8bf14a3ef4e 100644
+--- a/drivers/net/phy/at803x.c
++++ b/drivers/net/phy/at803x.c
+@@ -82,6 +82,16 @@ MODULE_DESCRIPTION("Atheros 803x PHY driver");
+ MODULE_AUTHOR("Matus Ujhelyi");
+ MODULE_LICENSE("GPL");
+ 
++struct at803x_hw_stat {
++	const char *string;
++	u8 reg;
++	u8 bits;
++};
++
++static struct at803x_hw_stat at803x_hw_stats[] = {
++	{ "phy_idle_errors", 10, 8 },
++};
++
+ struct at803x_priv {
+ 	bool phy_reset:1;
+ 	struct gpio_desc *gpiod_reset;
+@@ -97,6 +107,41 @@ struct at803x_context {
+ 	u16 led_control;
+ };
+ 
++
++static int at803x_phy_get_sset_count(struct phy_device *phydev)
++{
++	return ARRAY_SIZE(at803x_hw_stat);
++}
++
++static void at803x_phy_get_strings(struct phy_device *phydev, u8 *data)
++{
++	unsigned int i;
++
++	for (i = 0; i < ARRAY_SIZE(at803x_phy_hw_stats); i++)
++		memcpy(data + i * ETH_GSTRING_LEN,
++		       at803x_phy_hw_stats[i].string, ETH_GSTRING_LEN);
++}
++
++static void at803x_phy_get_stats(struct phy_device *phydev, u64 *shadow,
++		       struct ethtool_stats *stats, u64 *data)
++{
++	unsigned int i;
++	int val;
++	struct at803x_phy_hw_stat stat;
++	u64 ret;
++
++	for (i = 0; i < ARRAY_SIZE(at803x_phy_hw_stats); i++) {
++		stat = at803x_phy_hw_stats[i];
++		val = phy_read(phydev, stat.reg);
++		if (val < 0) {
++			ret = UINT64_MAX;
++		} else {
++			val >>= stat.shift;
++			ret = val & ((1 << stat.bits) - 1);
++		}
++		data[i] = ret;
++}
++
+ static int at803x_debug_reg_read(struct phy_device *phydev, u16 reg)
+ {
+ 	int ret;
+@@ -521,13 +566,17 @@ static struct phy_driver at803x_driver[] = {
+ 	.get_wol		= at803x_get_wol,
+ 	.suspend		= at803x_suspend,
+ 	.resume			= at803x_resume,
+-	.features		= PHY_GBIT_FEATURES,
++	.features		= PHY_GBIT_FEATURES | SUPPORTED_FIBRE,
+ 	.flags			= PHY_HAS_INTERRUPT,
+ 	.config_aneg		= genphy_config_aneg,
+ 	.read_status		= genphy_read_status,
+ 	.aneg_done		= at803x_aneg_done,
+ 	.ack_interrupt		= &at803x_ack_interrupt,
+ 	.config_intr		= &at803x_config_intr,
++	.set_loopback		= genphy_loopback,
++	.get_sset_count		= at803x_get_sset_count,
++	.get_strings		= at803x_get_strings,
++	.get_stats		= at803x_get_stats,
+ }, {
+ 	/* ATHEROS 8032 */
+ 	.phy_id			= ATH8032_PHY_ID,
+-- 
+2.17.1
+

@@ -1,0 +1,452 @@
+From 0994aa91b24ae1d3f9a98630c87f20758e2ac2b5 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Ren=C3=A9=20van=20Dorst?= <opensource@vdorst.com>
+Date: Thu, 19 Jul 2018 16:12:40 +0200
+Subject: [PATCH 2002/2002] Adding MT7621 DSA support.
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Signed-off-by: René van Dorst <opensource@vdorst.com>
+---
+ drivers/net/dsa/mt7530.c                    | 37 +++++++++-
+ drivers/net/ethernet/mediatek/Kconfig       |  4 +-
+ drivers/net/ethernet/mediatek/mtk_eth_soc.c | 79 ++++++++++++++++++++-
+ drivers/net/ethernet/mediatek/mtk_eth_soc.h | 23 +++++-
+ 4 files changed, 135 insertions(+), 8 deletions(-)
+
+diff --git a/drivers/net/dsa/mt7530.c b/drivers/net/dsa/mt7530.c
+index d8407a72d676..dc48f01674ab 100644
+--- a/drivers/net/dsa/mt7530.c
++++ b/drivers/net/dsa/mt7530.c
+@@ -662,6 +662,7 @@ static void mt7530_adjust_link(struct dsa_switch *ds, int port,
+ 			if (flowctrl & FLOW_CTRL_RX)
+ 				mcr |= PMCR_RX_FC_EN;
+ 		}
++		dev_info(priv->dev, "Adjust link: %d, %x\n", port, mcr);
+ 		mt7530_write(priv, MT7530_PMCR_P(port), mcr);
+ 	}
+ }
+@@ -673,6 +674,8 @@ mt7530_cpu_port_enable(struct mt7530_priv *priv,
+ 	u8 port_mask = 0;
+ 	int i;
+ 
++	dev_info(priv->dev, "mt7530_cpu_port_enable: %d", port);
++
+ 	/* Enable Mediatek header mode on the cpu port */
+ 	mt7530_write(priv, MT7530_PVC_P(port),
+ 		     PORT_SPEC_TAG);
+@@ -944,6 +947,8 @@ mt7530_setup(struct dsa_switch *ds)
+ 	if (IS_ERR(priv->ethernet))
+ 		return PTR_ERR(priv->ethernet);
+ 
++#ifndef CONFIG_SOC_MT7621
++	// FIXME: Enable regulators on MT7621 if needed
+ 	regulator_set_voltage(priv->core_pwr, 1000000, 1000000);
+ 	ret = regulator_enable(priv->core_pwr);
+ 	if (ret < 0) {
+@@ -959,7 +964,7 @@ mt7530_setup(struct dsa_switch *ds)
+ 			ret);
+ 		return ret;
+ 	}
+-
++#endif
+ 	/* Reset whole chip through gpio pin or memory-mapped registers for
+ 	 * different type of hardware
+ 	 */
+@@ -994,17 +999,38 @@ mt7530_setup(struct dsa_switch *ds)
+ 		     SYS_CTRL_PHY_RST | SYS_CTRL_SW_RST |
+ 		     SYS_CTRL_REG_RST);
+ 
+-	/* Enable Port 6 only; P5 as GMAC5 which currently is not supported */
++	/* Enable Port 6 only; P5 as GMAC5 */
+ 	val = mt7530_read(priv, MT7530_MHWTRAP);
++
+ 	val &= ~MHWTRAP_P5_DIS & ~MHWTRAP_P6_DIS & ~MHWTRAP_PHY_ACCESS;
+ 	val |= MHWTRAP_MANUAL;
++
+ 	if (!dsa_is_cpu_port(ds, 5)) {
+ 		val |= MHWTRAP_P5_DIS;
+ 		val |= MHWTRAP_P5_MAC_SEL;
+ 		val |= MHWTRAP_P5_RGMII_MODE;
+-	}
++	};
++
+ 	mt7530_write(priv, MT7530_MHWTRAP, val);
+ 
++	if (!dsa_is_cpu_port(ds, 5)) {
++		dev_info(priv->dev, "P5 disabled.\n");
++		/* (P5, link OFF) */
++		mt7530_write(priv, MT7530_PMCR_P(5), PMCR_FORCE_MODE);
++
++		/* P5 RGMII TX Clock Control, delay 0 */
++		mt7530_write(priv, MT7530_P5RGMIITXCR, CSR_RGMII_TXC_CFG(0x10));
++
++		/* reduce P5 RGMII Tx driving, 8mA*/
++		val = P5_IO_CLK_DRV(1);
++		val |= P5_IO_DATA_DRV(1);
++		mt7530_write(priv, MT7530_IO_DRV_CR, val);
++
++		/* P5 RGMII RX Clock Control: delay setting for 1000M */
++		val = CSR_RGMII_EDGE_ALIGN | CSR_RGMII_RXC_0DEG_CFG(2);
++		mt7530_write(priv, MT7530_P5RGMIIRXCR, val);
++	}
++
+ 	/* Enable and reset MIB counters */
+ 	mt7530_mib_reset(ds);
+ 
+@@ -1054,6 +1080,8 @@ mt7530_probe(struct platform_device *mdiodev)
+ 	struct mt7530_priv *priv;
+ 	struct device_node *dn, *mdio;
+ 
++	dev_info(&mdiodev->dev,"mt7530_probe\n");
++
+ 	dn = mdiodev->dev.of_node;
+ 
+ 	priv = devm_kzalloc(&mdiodev->dev, sizeof(*priv), GFP_KERNEL);
+@@ -1078,6 +1106,8 @@ mt7530_probe(struct platform_device *mdiodev)
+ 		}
+ 	}
+ 
++#ifndef CONFIG_SOC_MT7621
++	// FIXME: Enable regulators on MT7621 if needed
+ 	priv->core_pwr = devm_regulator_get(&mdiodev->dev, "core");
+ 	if (IS_ERR(priv->core_pwr))
+ 		return PTR_ERR(priv->core_pwr);
+@@ -1085,6 +1115,7 @@ mt7530_probe(struct platform_device *mdiodev)
+ 	priv->io_pwr = devm_regulator_get(&mdiodev->dev, "io");
+ 	if (IS_ERR(priv->io_pwr))
+ 		return PTR_ERR(priv->io_pwr);
++#endif
+ 
+ 	/* Not MCM that indicates switch works as the remote standalone
+ 	 * integrated circuit so the GPIO pin would be used to complete
+diff --git a/drivers/net/ethernet/mediatek/Kconfig b/drivers/net/ethernet/mediatek/Kconfig
+index f9149d2a4694..2f00a59d8734 100644
+--- a/drivers/net/ethernet/mediatek/Kconfig
++++ b/drivers/net/ethernet/mediatek/Kconfig
+@@ -1,6 +1,6 @@
+ config NET_VENDOR_MEDIATEK
+ 	bool "MediaTek ethernet driver"
+-	depends on ARCH_MEDIATEK
++	depends on ARCH_MEDIATEK || SOC_MT7621
+ 	---help---
+ 	  If you have a Mediatek SoC with ethernet, say Y.
+ 
+@@ -9,7 +9,7 @@ if NET_VENDOR_MEDIATEK
+ config NET_MEDIATEK_SOC
+ 	tristate "MediaTek SoC Gigabit Ethernet support"
+ 	depends on NET_VENDOR_MEDIATEK
+-	select PHYLIB
++	select PHYLINK
+ 	---help---
+ 	  This driver supports the gigabit ethernet MACs in the
+ 	  MediaTek SoC family.
+diff --git a/drivers/net/ethernet/mediatek/mtk_eth_soc.c b/drivers/net/ethernet/mediatek/mtk_eth_soc.c
+index b5f3241d48b0..1debf9eeb24c 100644
+--- a/drivers/net/ethernet/mediatek/mtk_eth_soc.c
++++ b/drivers/net/ethernet/mediatek/mtk_eth_soc.c
+@@ -143,12 +143,16 @@ static int mtk_mdio_read(struct mii_bus *bus, int phy_addr, int phy_reg)
+ static void mtk_gmac0_rgmii_adjust(struct mtk_eth *eth, int speed)
+ {
+ 	u32 val;
++#ifndef CONFIG_SOC_MT7621
+ 	int ret;
++#endif
+ 
+ 	val = (speed == SPEED_1000) ?
+ 		INTF_MODE_RGMII_1000 : INTF_MODE_RGMII_10_100;
+ 	mtk_w32(eth, val, INTF_MODE);
+ 
++#ifndef CONFIG_SOC_MT7621
++	// FIXME: Add TRGMII init code for MT7621!
+ 	regmap_update_bits(eth->ethsys, ETHSYS_CLKCFG0,
+ 			   ETHSYS_TRGMII_CLK_SEL362_5,
+ 			   ETHSYS_TRGMII_CLK_SEL362_5);
+@@ -157,6 +161,7 @@ static void mtk_gmac0_rgmii_adjust(struct mtk_eth *eth, int speed)
+ 	ret = clk_set_rate(eth->clks[MTK_CLK_TRGPLL], val);
+ 	if (ret)
+ 		dev_err(eth->dev, "Failed to set trgmii pll: %d\n", ret);
++#endif
+ 
+ 	val = (speed == SPEED_1000) ?
+ 		RCK_CTRL_RGMII_1000 : RCK_CTRL_RGMII_10_100;
+@@ -167,6 +172,7 @@ static void mtk_gmac0_rgmii_adjust(struct mtk_eth *eth, int speed)
+ 	mtk_w32(eth, val, TRGMII_TCK_CTRL);
+ }
+ 
++#ifndef CONFIG_SOC_MT7621
+ static void mtk_gmac_sgmii_hw_setup(struct mtk_eth *eth, int mac_id)
+ {
+ 	u32 val;
+@@ -207,6 +213,7 @@ static void mtk_gmac_sgmii_hw_setup(struct mtk_eth *eth, int mac_id)
+ 		dev_info(eth->dev, "setup gmac1 going through sgmii");
+ 	}
+ }
++#endif
+ 
+ static void mtk_phy_link_adjust(struct net_device *dev)
+ {
+@@ -257,11 +264,13 @@ static void mtk_phy_link_adjust(struct net_device *dev)
+ 		if (flowctrl & FLOW_CTRL_RX)
+ 			mcr |= MAC_MCR_FORCE_RX_FC;
+ 
+-		netif_dbg(mac->hw, link, dev, "rx pause %s, tx pause %s\n",
++		netif_info(mac->hw, link, dev, "rx pause %s, tx pause %s\n",
+ 			  flowctrl & FLOW_CTRL_RX ? "enabled" : "disabled",
+ 			  flowctrl & FLOW_CTRL_TX ? "enabled" : "disabled");
+ 	}
+ 
++	printk("mtk_phy_link_adjust: %d, %x\n", mac->id, mcr);
++
+ 	mtk_w32(mac->hw, mcr, MTK_MAC_MCR(mac->id));
+ 
+ 	if (dev->phydev->link)
+@@ -324,10 +333,12 @@ static int mtk_phy_connect(struct net_device *dev)
+ 	case PHY_INTERFACE_MODE_RGMII_ID:
+ 	case PHY_INTERFACE_MODE_RGMII:
+ 		break;
++#ifndef CONFIG_SOC_MT7621
+ 	case PHY_INTERFACE_MODE_SGMII:
+ 		if (MTK_HAS_CAPS(eth->soc->caps, MTK_SGMII))
+ 			mtk_gmac_sgmii_hw_setup(eth, mac->id);
+ 		break;
++#endif
+ 	case PHY_INTERFACE_MODE_MII:
+ 		mac->ge_mode = 1;
+ 		break;
+@@ -1768,6 +1779,28 @@ static void mtk_tx_timeout(struct net_device *dev)
+ 	schedule_work(&eth->pending_work);
+ }
+ 
++#ifdef CONFIG_SOC_MT7621
++static irqreturn_t mtk_handle_irq(int irq, void *_eth)
++{
++	struct mtk_eth *eth = _eth;
++
++	/* RX */
++	if (mtk_r32(eth, MTK_PDMA_INT_STATUS) & MTK_RX_DONE_INT)
++		if (likely(napi_schedule_prep(&eth->rx_napi))) {
++			__napi_schedule(&eth->rx_napi);
++			mtk_rx_irq_disable(eth, MTK_RX_DONE_INT);
++		}
++
++	/* TX */
++	if (mtk_r32(eth, MTK_QMTK_INT_STATUS) & MTK_TX_DONE_INT)
++		if (likely(napi_schedule_prep(&eth->tx_napi))) {
++			__napi_schedule(&eth->tx_napi);
++			mtk_tx_irq_disable(eth, MTK_TX_DONE_INT);
++		}
++
++	return IRQ_HANDLED;
++}
++#else
+ static irqreturn_t mtk_handle_irq_rx(int irq, void *_eth)
+ {
+ 	struct mtk_eth *eth = _eth;
+@@ -1791,6 +1824,7 @@ static irqreturn_t mtk_handle_irq_tx(int irq, void *_eth)
+ 
+ 	return IRQ_HANDLED;
+ }
++#endif
+ 
+ #ifdef CONFIG_NET_POLL_CONTROLLER
+ static void mtk_poll_controller(struct net_device *dev)
+@@ -1800,7 +1834,9 @@ static void mtk_poll_controller(struct net_device *dev)
+ 
+ 	mtk_tx_irq_disable(eth, MTK_TX_DONE_INT);
+ 	mtk_rx_irq_disable(eth, MTK_RX_DONE_INT);
++#ifndef CONFIG_SOC_MT7621
+ 	mtk_handle_irq_rx(eth->irq[2], dev);
++#endif
+ 	mtk_tx_irq_enable(eth, MTK_TX_DONE_INT);
+ 	mtk_rx_irq_enable(eth, MTK_RX_DONE_INT);
+ }
+@@ -1976,6 +2012,27 @@ static int mtk_hw_init(struct mtk_eth *eth)
+ 	}
+ 	regmap_write(eth->ethsys, ETHSYS_SYSCFG0, val);
+ 
++#ifdef CONFIG_SOC_MT7621
++
++#define SYSC_PAD_RGMII2_MDIO	0x58
++#define SYSC_GPIO_MODE	0x60
++#define SYSC_REG_CFG1	0x14
++	printk("MT7621: GE2: Pininit\n");
++
++	/* reduce RGMII1 PAD driving strength */
++	regmap_read(eth->ethsys, SYSC_PAD_RGMII2_MDIO, &val);
++	// MDIO
++	val &= ~(3 << 4);
++	// RGMII2, 12mA
++	val &= ~(3 <<20); 
++	val |= (2 << 20); 
++	regmap_write(eth->ethsys, SYSC_PAD_RGMII2_MDIO, val);
++
++	/* gpio mux - RGMII1&RGMII2=Normal mode, set GMAC1,2 RGMII mode  */
++	regmap_read(eth->ethsys, SYSC_GPIO_MODE, &val);
++	val &= ~(BIT(14) | BIT(15) | 3 << 12 | 3 << 14);
++	regmap_write(eth->ethsys, SYSC_GPIO_MODE, val);
++#else
+ 	if (eth->pctl) {
+ 		/* Set GE2 driving and slew rate */
+ 		regmap_write(eth->pctl, GPIO_DRV_SEL10, 0xa00);
+@@ -1986,6 +2043,7 @@ static int mtk_hw_init(struct mtk_eth *eth)
+ 		/* set GE2 TUNE */
+ 		regmap_write(eth->pctl, GPIO_BIAS_CTRL, 0x0);
+ 	}
++#endif
+ 
+ 	/* Set linkdown as the default for each GMAC. Its own MCR would be set
+ 	 * up with the more appropriate value when mtk_phy_link_adjust call is
+@@ -2555,11 +2613,13 @@ static int mtk_probe(struct platform_device *pdev)
+ 
+ 	eth->ethsys = syscon_regmap_lookup_by_phandle(pdev->dev.of_node,
+ 						      "mediatek,ethsys");
++
+ 	if (IS_ERR(eth->ethsys)) {
+ 		dev_err(&pdev->dev, "no ethsys regmap found\n");
+ 		return PTR_ERR(eth->ethsys);
+ 	}
+ 
++#ifndef CONFIG_SOC_MT7621
+ 	if (MTK_HAS_CAPS(eth->soc->caps, MTK_SGMII)) {
+ 		eth->sgmiisys =
+ 		syscon_regmap_lookup_by_phandle(pdev->dev.of_node,
+@@ -2569,6 +2629,7 @@ static int mtk_probe(struct platform_device *pdev)
+ 			return PTR_ERR(eth->sgmiisys);
+ 		}
+ 	}
++#endif
+ 
+ 	if (eth->soc->required_pctl) {
+ 		eth->pctl = syscon_regmap_lookup_by_phandle(pdev->dev.of_node,
+@@ -2579,13 +2640,15 @@ static int mtk_probe(struct platform_device *pdev)
+ 		}
+ 	}
+ 
+-	for (i = 0; i < 3; i++) {
++	for (i = 0; i < IRQ_MAX; i++)
++	{
+ 		eth->irq[i] = platform_get_irq(pdev, i);
+ 		if (eth->irq[i] < 0) {
+ 			dev_err(&pdev->dev, "no IRQ%d resource found\n", i);
+ 			return -ENXIO;
+ 		}
+ 	}
++
+ 	for (i = 0; i < ARRAY_SIZE(eth->clks); i++) {
+ 		eth->clks[i] = devm_clk_get(eth->dev,
+ 					    mtk_clks_source_name[i]);
+@@ -2627,6 +2690,11 @@ static int mtk_probe(struct platform_device *pdev)
+ 			goto err_deinit_hw;
+ 	}
+ 
++#ifdef CONFIG_SOC_MT7621
++	/* MT7621 has only 1 interrupt for rx & tx */
++	err = devm_request_irq(eth->dev, eth->irq[0], mtk_handle_irq, 0,
++	           dev_name(eth->dev), eth);
++#else
+ 	err = devm_request_irq(eth->dev, eth->irq[1], mtk_handle_irq_tx, 0,
+ 			       dev_name(eth->dev), eth);
+ 	if (err)
+@@ -2634,6 +2702,7 @@ static int mtk_probe(struct platform_device *pdev)
+ 
+ 	err = devm_request_irq(eth->dev, eth->irq[2], mtk_handle_irq_rx, 0,
+ 			       dev_name(eth->dev), eth);
++#endif
+ 	if (err)
+ 		goto err_free_dev;
+ 
+@@ -2706,6 +2775,11 @@ static const struct mtk_soc_data mt2701_data = {
+ 	.required_pctl = true,
+ };
+ 
++static const struct mtk_soc_data mt7621_data = {
++	.caps = 0,
++	.required_clks = MT7621_CLKS_BITMAP
++};
++
+ static const struct mtk_soc_data mt7622_data = {
+ 	.caps = MTK_DUAL_GMAC_SHARED_SGMII | MTK_GMAC1_ESW,
+ 	.required_clks = MT7622_CLKS_BITMAP,
+@@ -2720,6 +2794,7 @@ static const struct mtk_soc_data mt7623_data = {
+ 
+ const struct of_device_id of_mtk_match[] = {
+ 	{ .compatible = "mediatek,mt2701-eth", .data = &mt2701_data},
++	{ .compatible = "mediatek,mt7621-eth", .data = &mt7621_data},
+ 	{ .compatible = "mediatek,mt7622-eth", .data = &mt7622_data},
+ 	{ .compatible = "mediatek,mt7623-eth", .data = &mt7623_data},
+ 	{},
+diff --git a/drivers/net/ethernet/mediatek/mtk_eth_soc.h b/drivers/net/ethernet/mediatek/mtk_eth_soc.h
+index 8c657616a102..747f715310ca 100644
+--- a/drivers/net/ethernet/mediatek/mtk_eth_soc.h
++++ b/drivers/net/ethernet/mediatek/mtk_eth_soc.h
+@@ -364,18 +364,28 @@
+ #define ETHSYS_CHIPID4_7	0x4
+ #define MT7623_ETH		7623
+ #define MT7622_ETH		7622
++#define MT7621_ETH		7621
+ 
+ /* ethernet subsystem config register */
+ #define ETHSYS_SYSCFG0		0x14
+ #define SYSCFG0_GE_MASK		0x3
+ #define SYSCFG0_GE_MODE(x, y)	(x << (12 + (y * 2)))
++
++#ifndef CONFIG_SOC_MT7621
+ #define SYSCFG0_SGMII_MASK	(3 << 8)
+ #define SYSCFG0_SGMII_GMAC1	((2 << 8) & GENMASK(9, 8))
+ #define SYSCFG0_SGMII_GMAC2	((3 << 8) & GENMASK(9, 8))
++#endif
+ 
+ /* ethernet subsystem clock register */
+ #define ETHSYS_CLKCFG0		0x2c
++
++#ifdef CONFIG_SOC_MT7621
++#define ETHSYS_TRGMII_CLK_SEL_MASK	( BIT(5) | BIT(6) )
++#define ETHSYS_TRGMII_CLK_SEL_APLL 	BIT(6)
++#else
+ #define ETHSYS_TRGMII_CLK_SEL362_5	BIT(11)
++#endif
+ 
+ /* ethernet reset control register */
+ #define ETHSYS_RSTCTRL		0x34
+@@ -489,6 +499,8 @@ enum mtk_clks_map {
+ 				 BIT(MTK_CLK_SGMII_CDR_FB) | \
+ 				 BIT(MTK_CLK_SGMII_CK) | \
+ 				 BIT(MTK_CLK_ETH2PLL))
++#define MT7621_CLKS_BITMAP	(BIT(MTK_CLK_ETHIF) | BIT(MTK_CLK_ESW) )
++
+ enum mtk_dev_state {
+ 	MTK_HW_INIT,
+ 	MTK_RESETTING
+@@ -621,6 +633,13 @@ struct mtk_soc_data {
+  * @soc:		Holding specific data among vaious SoCs
+  */
+ 
++/* Number of IRQs used */
++#ifdef CONFIG_SOC_MT7621
++#define IRQ_MAX 1
++#else
++#define IRQ_MAX 3
++#endif
++
+ struct mtk_eth {
+ 	struct device			*dev;
+ 	void __iomem			*base;
+@@ -630,11 +649,13 @@ struct mtk_eth {
+ 	struct net_device		dummy_dev;
+ 	struct net_device		*netdev[MTK_MAX_DEVS];
+ 	struct mtk_mac			*mac[MTK_MAX_DEVS];
+-	int				irq[3];
++	int				irq[IRQ_MAX];
+ 	u32				msg_enable;
+ 	unsigned long			sysclk;
+ 	struct regmap			*ethsys;
++#ifndef CONFIG_SOC_MT7621
+ 	struct regmap			*sgmiisys;
++#endif
+ 	struct regmap			*pctl;
+ 	u32				chip_id;
+ 	bool				hwlro;
+-- 
+2.17.1
+
