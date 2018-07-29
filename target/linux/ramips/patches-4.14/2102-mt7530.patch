@@ -1,0 +1,71 @@
+diff --git a/drivers/net/dsa/mt7530.c b/drivers/net/dsa/mt7530.c
+index dc48f01674ab..f3831002e3fb 100644
+--- a/drivers/net/dsa/mt7530.c
++++ b/drivers/net/dsa/mt7530.c
+@@ -1005,14 +1005,62 @@ mt7530_setup(struct dsa_switch *ds)
+ 	val &= ~MHWTRAP_P5_DIS & ~MHWTRAP_P6_DIS & ~MHWTRAP_PHY_ACCESS;
+ 	val |= MHWTRAP_MANUAL;
+ 
+-	if (!dsa_is_cpu_port(ds, 5)) {
+-		val |= MHWTRAP_P5_DIS;
++#if 0
++	if ( !dsa_is_normal_port(ds, 5) ) {
++		dev_info(priv->dev, "P5 enable as ephy.\n");
+ 		val |= MHWTRAP_P5_MAC_SEL;
+-		val |= MHWTRAP_P5_RGMII_MODE;
+-	};
++		val |= MHWTRAP_P5_RGMII_MODE;	
++	} else {
++#endif
++		/* label = dsa */
++		if (!dsa_is_dsa_port(ds, 5)) {
++			val |= MHWTRAP_P5_DIS;
++			val |= MHWTRAP_P5_MAC_SEL;
++			val |= MHWTRAP_P5_RGMII_MODE;
++		}
+ 
+ 	mt7530_write(priv, MT7530_MHWTRAP, val);
+ 
++#if 0
++	if ( !dsa_is_normal_port(ds, 5) ) {
++		dev_info(priv->dev, "P5 enabled.\n");
++		/* (P5, link ON) */
++		mt7530_write(priv, MT7530_PMCR_P(5), 0x7e33b);
++
++		/* Disable GMAC 2 */
++		regmap_write(priv->ethernet, 0x103500, 0x8000);
++		/* GMAC 2 Mode RJ45 */
++		regmap_read(priv->ethernet, 0x14, &val);
++		val |= (3<14);
++		regmap_write(priv->ethernet, 0x14, val);
++		/* RGMII2_MODE */
++		regmap_read(priv->ethernet, 0x60, &val);
++		val &= ~BIT(15); // RGMII2
++		regmap_write(priv->ethernet, 0x60, val);
++
++		/* P5 RGMII TX Clock Control, delay 0 */
++		// mt7530_write(priv, MT7530_P5RGMIITXCR, CSR_RGMII_TXC_CFG(0x10));
++
++		/* reduce P5 RGMII Tx driving, 8mA*/
++		// val = P5_IO_CLK_DRV(1);
++		// val |= P5_IO_DATA_DRV(1);
++		// t7530_write(priv, MT7530_IO_DRV_CR, val);
++
++		/* P5 RGMII RX Clock Control: delay setting for 1000M */
++		// val = CSR_RGMII_EDGE_ALIGN | CSR_RGMII_RXC_0DEG_CFG(2);
++		// mt7530_write(priv, MT7530_P5RGMIIRXCR, val);
++		
++		mt7530_write(priv, 0x7b00, 0x102); // P5 RGMII RX Clock Control
++		mt7530_write(priv, 0x7b04, 0x14); // P5 RGMII TX Clock Control, delay 4
++		val = mt7530_read(priv, 0x7810);
++		val &= ~3;
++		val |= 2;
++		
++		mt7530_write(priv, 0x7810, val); // 12mA derive strength.
++		
++		
++	} else {
++#endif
+ 	if (!dsa_is_cpu_port(ds, 5)) {
+ 		dev_info(priv->dev, "P5 disabled.\n");
+ 		/* (P5, link OFF) */

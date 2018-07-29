@@ -89,7 +89,7 @@
 		#size-cells = <0>;
 		ephy5: ethernet-phy@7 {
 			reg = <7>;
-			phy-mode = "rgmii";
+			phy-mode = "rgmii-rxid";
 		};
 	};
 };

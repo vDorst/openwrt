@@ -1,0 +1,200 @@
+diff --git a/drivers/net/phy/at803x.c b/drivers/net/phy/at803x.c
+index d801c99a74ec..382c8c558c00 100644
+--- a/drivers/net/phy/at803x.c
++++ b/drivers/net/phy/at803x.c
+@@ -78,6 +78,18 @@
+ #define AT803X_PHY_ID_MASK			0xffffffef
+ #define AT8032_PHY_ID_MASK			0xffffffff
+ 
++#define ADVERTISE_FIBER_1000HALF	0x40
++#define ADVERTISE_FIBER_1000FULL	0x20
++
++#define ADVERTISE_PAUSE_FIBER		0x180
++#define ADVERTISE_PAUSE_ASYM_FIBER	0x100
++
++#define LPA_FIBER_1000HALF	0x40
++#define LPA_FIBER_1000FULL	0x20
++
++#define LPA_PAUSE_FIBER		0x180
++#define LPA_PAUSE_ASYM_FIBER	0x100
++
+ MODULE_DESCRIPTION("Atheros 803x PHY driver");
+ MODULE_AUTHOR("Matus Ujhelyi");
+ MODULE_LICENSE("GPL");
+@@ -343,24 +355,36 @@ static int at803x_config_init(struct phy_device *phydev)
+ 	int ret;
+ 	u32 v;
+ 
+-	if (phydev->drv->phy_id == ATH8031_PHY_ID &&
+-		phydev->interface == PHY_INTERFACE_MODE_SGMII)
++	v = phy_read(phydev, AT803X_REG_CHIP_CONFIG);
++	printk("at803x_config_init: CHIP: %x\n", v);
++
++	/* reset device */
++	ret = genphy_soft_reset(phydev);
++	if (ret < 0)
++		return ret;
++
++	v = phy_read(phydev, AT803X_REG_CHIP_CONFIG);
++	printk("at803x_config_init_2: CHIP: %x\n", v);
++
++	if ( (v & 0xf) == 2 )
+ 	{
+-		v = phy_read(phydev, AT803X_REG_CHIP_CONFIG);
++		printk("at803x_config_init: fibre mode\n");
++
+ 		/* select SGMII/fiber page */
+ 		ret = phy_write(phydev, AT803X_REG_CHIP_CONFIG,
+ 						v & ~AT803X_BT_BX_REG_SEL);
+ 		if (ret)
+ 			return ret;
++
++		v = phy_read(phydev, MII_BMCR);
++		printk("at803x_config_init: MII_BMCR: %x\n", v);
+ 		/* enable SGMII autonegotiation */
+-		ret = phy_write(phydev, MII_BMCR, AT803X_SGMII_ANEG_EN);
+-		if (ret)
+-			return ret;
+-		/* select copper page */
+-		ret = phy_write(phydev, AT803X_REG_CHIP_CONFIG,
+-						v | AT803X_BT_BX_REG_SEL);
++		ret = phy_write(phydev, MII_BMCR, v | AT803X_SGMII_ANEG_EN | BIT(9) );
+ 		if (ret)
+ 			return ret;
++
++		phydev->supported |= SUPPORTED_FIBRE;
++		phydev->advertising |= SUPPORTED_FIBRE;
+ 	}
+ 
+ 	ret = genphy_config_init(phydev);
+@@ -421,6 +445,7 @@ static int at803x_config_intr(struct phy_device *phydev)
+ 	value = phy_read(phydev, AT803X_INTR_ENABLE);
+ 
+ 	if (phydev->interrupts == PHY_INTERRUPT_ENABLED) {
++		printk("at803x_config_intr: PHY_INTERRUPT_ENABLED\n");
+ 		value |= AT803X_INTR_ENABLE_AUTONEG_ERR;
+ 		value |= AT803X_INTR_ENABLE_SPEED_CHANGED;
+ 		value |= AT803X_INTR_ENABLE_DUPLEX_CHANGED;
+@@ -488,36 +513,92 @@ static void at803x_link_change_notify(struct phy_device *phydev)
+ 	}
+ }
+ 
++/**
++ * ethtool_adv_to_fiber_adv_t
++ * @ethadv: the ethtool advertisement settings
++ *
++ * A small helper function that translates ethtool advertisement
++ * settings to phy autonegotiation advertisements for the
++ * MII_ADV register for fiber link.
++ */
++static inline u32 ethtool_adv_to_fiber_adv_t(u32 ethadv)
++{
++	u32 result = 0;
++
++	if (ethadv & ADVERTISED_1000baseT_Half)
++		result |= ADVERTISE_FIBER_1000HALF;
++	if (ethadv & ADVERTISED_1000baseT_Full)
++		result |= ADVERTISE_FIBER_1000FULL;
++
++	if ((ethadv & ADVERTISE_PAUSE_ASYM) && (ethadv & ADVERTISE_PAUSE_CAP))
++		result |= LPA_PAUSE_ASYM_FIBER;
++	else if (ethadv & ADVERTISE_PAUSE_CAP)
++		result |= (ADVERTISE_PAUSE_FIBER
++			   & (~ADVERTISE_PAUSE_ASYM_FIBER));
++
++	return result;
++}
++
++static int at803x_config_aneg(struct phy_device *phydev)
++{
++	int v, ret;
++
++	v = phy_read(phydev, AT803X_REG_CHIP_CONFIG);
++	printk("at803x_config_aneg: CHIP: %x\n", v);
++
++	v = phy_read(phydev, MII_BMCR);
++	printk("at803x_config_aneg: MII_BMC: %x\n", v);
++	v &= BMCR_LOOPBACK | BMCR_ISOLATE | BMCR_PDOWN;
++
++	if (phydev->autoneg != AUTONEG_ENABLE) {
++		printk("at803x: genphy_setup_forced!\n");
++		
++
++		phydev->pause = 0;
++		phydev->asym_pause = 0;
++
++		if (SPEED_1000 == phydev->speed)
++			v |= BMCR_SPEED1000;
++		else if (SPEED_100 == phydev->speed)
++			v |= BMCR_SPEED100;
++
++		if (DUPLEX_FULL == phydev->duplex)
++			v |= BMCR_FULLDPLX;
++	} else {
++		/* enable SGMII autonegotiation */
++		v |= BIT(12) | BIT(9);
++	}
++	printk("at803x_config_aneg: MII_BMC: %x\n", v);
++	ret = phy_write(phydev, MII_BMCR, v);
++	return ret;
++}
++
+ static int at803x_aneg_done(struct phy_device *phydev)
+ {
+ 	int ccr;
+-
+ 	int aneg_done = genphy_aneg_done(phydev);
+-	if (aneg_done != BMSR_ANEGCOMPLETE)
+-		return aneg_done;
+ 
+-	/*
+-	 * in SGMII mode, if copper side autoneg is successful,
+-	 * also check SGMII side autoneg result
+-	 */
+-	ccr = phy_read(phydev, AT803X_REG_CHIP_CONFIG);
+-	if ((ccr & AT803X_MODE_CFG_MASK) != AT803X_MODE_CFG_SGMII)
+-		return aneg_done;
++	/* Read PHY-Specific Status */
++	ccr = phy_read(phydev, AT803X_PSSR);
++	printk("803x_aneg_done: AT803X_PSSR: %x, %x\n", ccr, aneg_done);
+ 
+-	/* switch to SGMII/fiber page */
+-	phy_write(phydev, AT803X_REG_CHIP_CONFIG, ccr & ~AT803X_BT_BX_REG_SEL);
++	/* SGMII serdes enable for fiber */
++	if ((phy_read(phydev, AT803X_REG_CHIP_CONFIG) & 0xF) == 2) {
++		pr_warn("803x_aneg_done: Fiber mode\n");
+ 
+-	/* check if the SGMII link is OK. */
+-	if (!(phy_read(phydev, AT803X_PSSR) & AT803X_PSSR_MR_AN_COMPLETE)) {
+-		pr_warn("803x_aneg_done: SGMII link is not ok\n");
+-		aneg_done = 0;
++		ccr = phy_read(phydev, AT803X_PSSR);
++		/* check if the SGMII link is OK. */
++		if (!(ccr & AT803X_PSSR_MR_AN_COMPLETE)) {
++			pr_warn("803x_aneg_done: SGMII link is not ok\n");
++			aneg_done = 0;
++		} 
+ 	}
+-	/* switch back to copper page */
+-	phy_write(phydev, AT803X_REG_CHIP_CONFIG, ccr | AT803X_BT_BX_REG_SEL);
+-
++end:
++	pr_warn("803x_aneg_done: %x\n", aneg_done);
+ 	return aneg_done;
+ }
+ 
++
+ static struct phy_driver at803x_driver[] = {
+ {
+ 	/* ATHEROS 8035 */
+@@ -567,9 +648,9 @@ static struct phy_driver at803x_driver[] = {
+ 	.resume			= at803x_resume,
+ 	.features		= PHY_GBIT_FEATURES | SUPPORTED_FIBRE,
+ 	.flags			= PHY_HAS_INTERRUPT,
+-	.config_aneg		= genphy_config_aneg,
+ 	.read_status		= genphy_read_status,
+ 	.aneg_done		= at803x_aneg_done,
++	.config_aneg		= at803x_config_aneg,
+ 	.ack_interrupt		= at803x_ack_interrupt,
+ 	.config_intr		= at803x_config_intr,
+ 	.set_loopback		= genphy_loopback,

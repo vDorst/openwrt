@@ -1,0 +1,38 @@
+diff --git a/drivers/net/ethernet/mediatek/mtk_eth_soc.c b/drivers/net/ethernet/mediatek/mtk_eth_soc.c
+index 1debf9eeb24c..1eded7f5ec17 100644
+--- a/drivers/net/ethernet/mediatek/mtk_eth_soc.c
++++ b/drivers/net/ethernet/mediatek/mtk_eth_soc.c
+@@ -2007,6 +2007,7 @@ static int mtk_hw_init(struct mtk_eth *eth)
+ 	for (i = 0; i < MTK_MAC_COUNT; i++) {
+ 		if (!eth->mac[i])
+ 			continue;
++		printk("MT7621: MAC%d MODE %x, id: %x\n", i, eth->mac[i]->ge_mode, eth->mac[i]->id);
+ 		val &= ~SYSCFG0_GE_MODE(SYSCFG0_GE_MASK, eth->mac[i]->id);
+ 		val |= SYSCFG0_GE_MODE(eth->mac[i]->ge_mode, eth->mac[i]->id);
+ 	}
+@@ -2021,17 +2022,20 @@ static int mtk_hw_init(struct mtk_eth *eth)
+ 
+ 	/* reduce RGMII1 PAD driving strength */
+ 	regmap_read(eth->ethsys, SYSC_PAD_RGMII2_MDIO, &val);
+-	// MDIO
++	// MDIO driving 2mA
+ 	val &= ~(3 << 4);
+ 	// RGMII2, 12mA
+-	val &= ~(3 <<20); 
+-	val |= (2 << 20); 
++	val &= ~(3 <<20);
++	val |= (2 << 20);
+ 	regmap_write(eth->ethsys, SYSC_PAD_RGMII2_MDIO, val);
+ 
+-	/* gpio mux - RGMII1&RGMII2=Normal mode, set GMAC1,2 RGMII mode  */
++	/* set GMAC1,2 RGMII mode  */
+ 	regmap_read(eth->ethsys, SYSC_GPIO_MODE, &val);
+-	val &= ~(BIT(14) | BIT(15) | 3 << 12 | 3 << 14);
++	val &= ~(3<<12); // MDIO_MODE = MDIO
++	val &= ~(BIT(15) | BIT(14)); // RGMIIx GPIO MODE = RGMIIx
+ 	regmap_write(eth->ethsys, SYSC_GPIO_MODE, val);
++
++
+ #else
+ 	if (eth->pctl) {
+ 		/* Set GE2 driving and slew rate */
