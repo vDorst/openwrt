@@ -1,19 +1,30 @@
 diff --git a/drivers/net/ethernet/mediatek/mtk_eth_soc.c b/drivers/net/ethernet/mediatek/mtk_eth_soc.c
-index 1debf9eeb24c..3af9627f040b 100644
+index 1debf9eeb24c..fac7082df0cb 100644
 --- a/drivers/net/ethernet/mediatek/mtk_eth_soc.c
 +++ b/drivers/net/ethernet/mediatek/mtk_eth_soc.c
-@@ -2005,8 +2005,10 @@ static int mtk_hw_init(struct mtk_eth *eth)
+@@ -1026,8 +1026,10 @@ static int mtk_poll_rx(struct napi_struct *napi, int budget,
+ 		}
  
- 	regmap_read(eth->ethsys, ETHSYS_SYSCFG0, &val);
+ 		if (unlikely(mac < 0 || mac >= MTK_MAC_COUNT ||
+-			     !eth->netdev[mac]))
++			     !eth->netdev[mac])) {
++			printk("mtk_poll_rx: MAC: %d, %x\n", mac, trxd.rxd4);
+ 			goto release_desc;
++		}
+ 
+ 		netdev = eth->netdev[mac];
+ 
+@@ -2007,6 +2009,9 @@ static int mtk_hw_init(struct mtk_eth *eth)
  	for (i = 0; i < MTK_MAC_COUNT; i++) {
-+		printk("MT7621: MTK_MAC_COUNT %x\n", i);
  		if (!eth->mac[i])
  			continue;
++		else 
++			printk("MT7621: MTK_MAC_COUNT %x, no mac!\n", i);
 +		printk("MT7621: MAC%d MODE %x, id: %x\n", i, eth->mac[i]->ge_mode, eth->mac[i]->id);
  		val &= ~SYSCFG0_GE_MODE(SYSCFG0_GE_MASK, eth->mac[i]->id);
  		val |= SYSCFG0_GE_MODE(eth->mac[i]->ge_mode, eth->mac[i]->id);
  	}
-@@ -2021,17 +2023,20 @@ static int mtk_hw_init(struct mtk_eth *eth)
+@@ -2021,17 +2026,20 @@ static int mtk_hw_init(struct mtk_eth *eth)
  
  	/* reduce RGMII1 PAD driving strength */
  	regmap_read(eth->ethsys, SYSC_PAD_RGMII2_MDIO, &val);
@@ -39,3 +50,41 @@ index 1debf9eeb24c..3af9627f040b 100644
  #else
  	if (eth->pctl) {
  		/* Set GE2 driving and slew rate */
+@@ -2212,6 +2220,8 @@ static void mtk_pending_work(struct work_struct *work)
+ 	for (i = 0; i < MTK_MAC_COUNT; i++) {
+ 		if (!test_bit(i, &restart))
+ 			continue;
++		else
++			printk("MT7621: restart DMA and enable IRQs: No MAC!\n");
+ 		err = mtk_open(eth->netdev[i]);
+ 		if (err) {
+ 			netif_alert(eth, ifup, eth->netdev[i],
+@@ -2483,6 +2493,8 @@ static int mtk_add_mac(struct mtk_eth *eth, struct device_node *np)
+ 	struct mtk_mac *mac;
+ 	const __be32 *_id = of_get_property(np, "reg", NULL);
+ 	int id, err;
++	
++	dev_err(eth->dev, "mtk_add_mac\n");
+ 
+ 	if (!_id) {
+ 		dev_err(eth->dev, "missing mac id\n");
+@@ -2506,6 +2518,10 @@ static int mtk_add_mac(struct mtk_eth *eth, struct device_node *np)
+ 		return -ENOMEM;
+ 	}
+ 	mac = netdev_priv(eth->netdev[id]);
++	if (!mac) {
++		dev_err(eth->dev, "netdev_priv mac failed\n");
++		//return -ENOMEM;
++	}
+ 	eth->mac[id] = mac;
+ 	mac->id = id;
+ 	mac->hw = eth;
+@@ -2543,6 +2559,8 @@ static int mtk_add_mac(struct mtk_eth *eth, struct device_node *np)
+ 	eth->netdev[id]->irq = eth->irq[0];
+ 	eth->netdev[id]->dev.of_node = np;
+ 
++	dev_err(eth->dev, "mtk_add_mac done\n");
++
+ 	return 0;
+ 
+ free_netdev:
