@@ -1,0 +1,14 @@
+diff --git a/drivers/net/phy/phy_device.c b/drivers/net/phy/phy_device.c
+index 86e58398e58d..fe0be03f4c70 100644
+--- a/drivers/net/phy/phy_device.c
++++ b/drivers/net/phy/phy_device.c
+@@ -1696,7 +1696,8 @@ static int __set_phy_supported(struct phy_device *phydev, u32 max_speed)
+ 	 * driver "features" member, we want to reset to sane defaults first
+ 	 * before supporting higher speeds.
+ 	 */
+-	phydev->supported &= PHY_DEFAULT_FEATURES;
++	phydev->supported &= ~(PHY_1000BT_FEATURES | PHY_100BT_FEATURES |
++			       PHY_10BT_FEATURES);
+ 
+ 	switch (max_speed) {
+ 	default:
