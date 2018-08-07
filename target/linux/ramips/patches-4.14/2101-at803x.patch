@@ -1,5 +1,5 @@
 diff --git a/drivers/net/phy/at803x.c b/drivers/net/phy/at803x.c
-index d801c99a74ec..69d31840b24c 100644
+index d801c99a74ec..4542a17203ec 100644
 --- a/drivers/net/phy/at803x.c
 +++ b/drivers/net/phy/at803x.c
 @@ -78,6 +78,18 @@
@@ -115,7 +115,7 @@ index d801c99a74ec..69d31840b24c 100644
  		value |= AT803X_INTR_ENABLE_AUTONEG_ERR;
  		value |= AT803X_INTR_ENABLE_SPEED_CHANGED;
  		value |= AT803X_INTR_ENABLE_DUPLEX_CHANGED;
-@@ -488,36 +528,159 @@ static void at803x_link_change_notify(struct phy_device *phydev)
+@@ -488,36 +528,166 @@ static void at803x_link_change_notify(struct phy_device *phydev)
  	}
  }
  
@@ -169,9 +169,6 @@ index d801c99a74ec..69d31840b24c 100644
 +	int adv, oldadv;
 +	u32 advertise;
 +
-+	if (phydev->autoneg != AUTONEG_ENABLE)
-+		return genphy_setup_forced(phydev);
-+
 +	/* Only allow advertising what this PHY supports */
 +	phydev->advertising &= phydev->supported;
 +	advertise = phydev->advertising;
@@ -218,7 +215,9 @@ index d801c99a74ec..69d31840b24c 100644
 +
 +	return changed;
 +}
-+
+ 
+-	/* switch to SGMII/fiber page */
+-	phy_write(phydev, AT803X_REG_CHIP_CONFIG, ccr & ~AT803X_BT_BX_REG_SEL);
 +static int at803x_config_aneg(struct phy_device *phydev)
 +{
 +	int v, ret;
@@ -228,20 +227,14 @@ index d801c99a74ec..69d31840b24c 100644
 +
 +	v = phy_read(phydev, MII_BMCR);
 +	printk("at803x_config_aneg: MII_BMC: %x\n", v);
++	v &= BMCR_LOOPBACK | BMCR_ISOLATE | BMCR_PDOWN;
 +
-+#if 1
 +	if (phydev->autoneg != AUTONEG_ENABLE) {
-+		printk("at803x: genphy_setup_forced!\n");
- 
--	/* switch to SGMII/fiber page */
--	phy_write(phydev, AT803X_REG_CHIP_CONFIG, ccr & ~AT803X_BT_BX_REG_SEL);
++		printk("at803x: genphy_setup_forced! SPEED: %d, DUPLEX: %x\n", phydev->speed, phydev->duplex);
++
 +		phydev->pause = 0;
 +		phydev->asym_pause = 0;
- 
--	/* check if the SGMII link is OK. */
--	if (!(phy_read(phydev, AT803X_PSSR) & AT803X_PSSR_MR_AN_COMPLETE)) {
--		pr_warn("803x_aneg_done: SGMII link is not ok\n");
--		aneg_done = 0;
++
 +		if (SPEED_1000 == phydev->speed)
 +			v |= BMCR_SPEED1000;
 +		else if (SPEED_100 == phydev->speed)
@@ -252,28 +245,40 @@ index d801c99a74ec..69d31840b24c 100644
 +	} else {
 +		/* enable SGMII autonegotiation */
 +		v |= BIT(12) | BIT(9);
++	}
++	printk("at803x_config_aneg: MII_BMC set: %x\n", v);
++	ret = phy_write(phydev, MII_BMCR, v);
++	if (ret < 0)
++		goto error;
+ 
+-	/* check if the SGMII link is OK. */
+-	if (!(phy_read(phydev, AT803X_PSSR) & AT803X_PSSR_MR_AN_COMPLETE)) {
+-		pr_warn("803x_aneg_done: SGMII link is not ok\n");
+-		aneg_done = 0;
++	if (phydev->autoneg == AUTONEG_ENABLE) {
++		printk("at803x: marvell_config_aneg_fiber!\n");
++		ret = marvell_config_aneg_fiber(phydev);
++		if (ret < 0)
++			goto error;
  	}
 -	/* switch back to copper page */
 -	phy_write(phydev, AT803X_REG_CHIP_CONFIG, ccr | AT803X_BT_BX_REG_SEL);
-+	ret = phy_write(phydev, MII_BMCR, v);
-+#else
-+	ret = marvell_config_aneg_fiber(phydev);
-+#endif
-+
+ 
 +	v = phy_read(phydev, MII_BMCR);
++error:
 +	printk("at803x_config_aneg: MII_BMC: %x\n", v);
 +	return ret;
 +}
 +
 +static int at803x_aneg_done(struct phy_device *phydev)
 +{
-+	int ccr;
++	int ccr, v;
 +	int aneg_done = genphy_aneg_done(phydev);
 +
 +	/* Read PHY-Specific Status */
 +	ccr = phy_read(phydev, AT803X_PSSR);
 +	printk("803x_aneg_done: AT803X_PSSR: %x, %x\n", ccr, aneg_done);
- 
++
 +	/* SGMII serdes enable for fiber */
 +	if ((phy_read(phydev, AT803X_REG_CHIP_CONFIG) & 0xF) == 2) {
 +		pr_warn("803x_aneg_done: Fiber mode\n");
@@ -283,10 +288,12 @@ index d801c99a74ec..69d31840b24c 100644
 +		if (!(ccr & AT803X_PSSR_MR_AN_COMPLETE)) {
 +			pr_warn("803x_aneg_done: SGMII link is not ok\n");
 +			aneg_done = 0;
-+		} 
++		}
 +	}
 +end:
-+	pr_warn("803x_aneg_done: %x\n", aneg_done);
++	v = phy_read(phydev, MII_BMCR);
++	printk("at803x_config_aneg: MII_BMC: %x\n", v);
++	pr_warn("803x_aneg_done: %x, %x\n", aneg_done, v);
  	return aneg_done;
  }
  
@@ -294,7 +301,7 @@ index d801c99a74ec..69d31840b24c 100644
  static struct phy_driver at803x_driver[] = {
  {
  	/* ATHEROS 8035 */
-@@ -567,9 +730,9 @@ static struct phy_driver at803x_driver[] = {
+@@ -567,9 +737,9 @@ static struct phy_driver at803x_driver[] = {
  	.resume			= at803x_resume,
  	.features		= PHY_GBIT_FEATURES | SUPPORTED_FIBRE,
  	.flags			= PHY_HAS_INTERRUPT,

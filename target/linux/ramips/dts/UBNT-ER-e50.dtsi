@@ -75,14 +75,6 @@
 		};
 	};
 
-	gmac1: mac@1 {
-		compatible = "mediatek,eth-mac";
-		mtd-mac-address = <&factory 0x22>;
-		mtd-mac-address-increment = <1>;
-		reg = <1>;
-		phy-mode = "rgmii";
-		phy-handle = <&ephy5>;
-	};
 
 	mdio: mdio-bus {
 		#address-cells = <1>;
@@ -141,6 +133,13 @@
 			reg = <4>;
 			label = "lan4";
 			cpu = <&cpu_port0>;
+		};
+
+		lan5: port@5 {
+			reg = <5>;
+			label = "lan5";
+			cpu = <&cpu_port0>;
+			phy-handle = <&ephy5>;
 		};
 
 		cpu_port0: port@6 {

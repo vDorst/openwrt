@@ -102,7 +102,7 @@
        };
 };
 
-&gmac1 {
+&lan5 {
        managed = "in-band-status";
        sfp = <&sfp5>;
 };
