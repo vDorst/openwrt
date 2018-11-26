@@ -361,6 +361,12 @@ ramips_setup_interfaces()
 		ucidef_add_switch "switch0" \
 			"4:lan" "6@eth0"
 		;;
+	ubnt-erx)
+		ucidef_set_interfaces_lan_wan "lan0 lan1 lan2 lan3" "lan4"
+		;;
+	ubnt-erx-sfp)
+		ucidef_set_interfaces_lan_wan "lan0 lan1 lan2 lan3 lan4" "lan5"
+		;;
 	vonets,var11n-300|\
 	wt1520-4M|\
 	wt1520-8M)
