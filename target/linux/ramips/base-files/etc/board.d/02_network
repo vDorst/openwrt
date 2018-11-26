@@ -222,8 +222,6 @@ ramips_setup_interfaces()
 	tl-wr841n-v13|\
 	skylab,skw92a|\
 	u7628-01-128M-16M|\
-	ubnt-erx|\
-	ubnt-erx-sfp|\
 	ur-326n4g|\
 	wrtnode|\
 	wrtnode2p | \

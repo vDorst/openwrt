@@ -136,3 +136,29 @@ define KernelPackage/sound-mt7620/description
 endef
 
 $(eval $(call KernelPackage,sound-mt7620))
+
+define KernelPackage/mtk-eth-soc
+  TITLE:=Use mainline MediaTek ethernet driver with DSA
+  DEPENDS:=@TARGET_ramips @TARGET_ramips_mt7621
+  HIDDEN:=1
+  KCONFIG:= \
+    NET_VENDOR_RALINK=n \
+    CONFIG_NET_RALINK_SOC=n \
+    CONFIG_NET_RALINK_GSW_MT7621=n \
+    CONFIG_NET_RALINK_MDIO=n \
+    CONFIG_NET_RALINK_MDIO_MT7620=n \
+    CONFIG_NET_RALINK_MT7621=n \
+    CONFIG_NET_VENDOR_MEDIATEK=y \
+    CONFIG_NET_MEDIATEK_SOC=y \
+    CONFIG_NET_DSA=y \
+    CONFIG_NET_DSA_MT7530=y \
+    CONFIG_NET_DSA_TAG_MTK=y \
+    CONFIG_BRIDGE_VLAN_FILTERING=y \
+    CONFIG_MDIO_BUS=y \
+    CONFIG_MDIO_DEVICE=y \
+    CONFIG_MDIO_I2C=y \
+    CONFIG_MFD_SYSCON=y \
+    CONFIG_REGMAP_MMIO=y
+endef
+
+$(eval $(call KernelPackage,mtk-eth-soc))

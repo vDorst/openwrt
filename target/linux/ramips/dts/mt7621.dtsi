@@ -64,8 +64,6 @@
 		clock-frequency = <50000000>;
 	};
 
-
-
 	palmbus: palmbus@1E000000 {
 		compatible = "palmbus";
 		reg = <0x1E000000 0x100000>;
@@ -421,47 +419,32 @@
 			0x1e003800 0x800>;
 	};
 
-	ethernet: ethernet@1e100000 {
-		compatible = "mediatek,mt7621-eth";
-		reg = <0x1e100000 0x10000>;
-
-		#address-cells = <1>;
-		#size-cells = <1>;
-
-		resets = <&rstctrl 6 &rstctrl 23>;
-		reset-names = "fe", "eth";
-
-		interrupt-parent = <&gic>;
-		interrupts = <GIC_SHARED 3 IRQ_TYPE_LEVEL_HIGH>;
-
-		mediatek,switch = <&gsw>;
-
-		mdio-bus {
-			#address-cells = <1>;
-			#size-cells = <0>;
-
-			phy1f: ethernet-phy@1f {
-				reg = <0x1f>;
-				phy-mode = "rgmii";
-			};
-		};
-
-		hnat: hnat@0 {
-			compatible = "mediatek,mt7623-hnat";
-			reg = <0 0x10000>;
-			mtketh-ppd = "eth0";
-			mtketh-lan = "eth0";
-			mtketh-wan = "eth0";
-			resets = <&rstctrl 0>;
-			reset-names = "mtketh";
-		};
+	ethsys: syscon@1e000000 {
+		compatible = "mediatek,mt7621-ethsys",
+			     "syscon";
+		reg = <0x1e000000 0x100>;
+		#clock-cells = <1>;
+		#reset-cells = <1>;
 	};
 
-	gsw: gsw@1e110000 {
-		compatible = "mediatek,mt7621-gsw";
-		reg = <0x1e110000 0x8000>;
+	eth: ethernet@1e100000 {
+		compatible = "mediatek,mt7621-eth",
+			     "syscon";
+		reg = <0x1e100000 0xe000>;
 		interrupt-parent = <&gic>;
-		interrupts = <GIC_SHARED 23 IRQ_TYPE_LEVEL_HIGH>;
+		interrupts = <GIC_SHARED 3 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&ethsys CLK_ETHSYS_ETH>,
+			 <&ethsys CLK_ETHSYS_ESW>;
+		clock-names = "ethif", "esw";
+		resets = <&rstctrl 6>,
+			 <&rstctrl 23>,
+			 <&rstctrl 0>;
+		reset-names = "fe", "gmac", "ppe";
+		mediatek,ethsys = <&ethsys>;
+		mediatek,pctl = <&ethsys>;
+		status = "disabled";
+		#address-cells = <1>;
+		#size-cells = <0>;
 	};
 
 	pcie: pcie@1e140000 {
