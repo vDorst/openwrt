@@ -390,7 +390,7 @@ define Device/ubnt-erx-sfp
   $(Device/ubnt-erx)
   DTS := UBNT-ERX-SFP
   DEVICE_TITLE := Ubiquiti EdgeRouter X-SFP
-  DEVICE_PACKAGES += kmod-i2c-algo-pca kmod-gpio-pca953x kmod-i2c-gpio-custom kmod-mtk-eth-soc -swconfig
+  DEVICE_PACKAGES += kmod-i2c-algo-pca kmod-gpio-pca953x kmod-i2c-gpio-custom kmod-mtk-eth-soc kmod-sfp
 endef
 TARGET_DEVICES += ubnt-erx-sfp
 

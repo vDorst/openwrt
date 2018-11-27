@@ -140,7 +140,6 @@ $(eval $(call KernelPackage,sound-mt7620))
 define KernelPackage/mtk-eth-soc
   TITLE:=Use mainline MediaTek ethernet driver with DSA
   DEPENDS:=@TARGET_ramips @TARGET_ramips_mt7621
-  HIDDEN:=1
   KCONFIG:= \
     NET_VENDOR_RALINK=n \
     CONFIG_NET_RALINK_SOC=n \
@@ -150,6 +149,7 @@ define KernelPackage/mtk-eth-soc
     CONFIG_NET_RALINK_MT7621=n \
     CONFIG_NET_VENDOR_MEDIATEK=y \
     CONFIG_NET_MEDIATEK_SOC=y \
+    CONFIG_HAVE_NET_DSA=y \
     CONFIG_NET_DSA=y \
     CONFIG_NET_DSA_MT7530=y \
     CONFIG_NET_DSA_TAG_MTK=y \
@@ -162,3 +162,14 @@ define KernelPackage/mtk-eth-soc
 endef
 
 $(eval $(call KernelPackage,mtk-eth-soc))
+
+define KernelPackage/sfp
+  TITLE:=SFP Cage support
+  DEPENDS:=@TARGET_ramips @TARGET_ramips_mt7621
+  KCONFIG:= \
+    CONFIG_PHYLINK=y \
+    CONFIG_SFP=y
+endef
+
+$(eval $(call KernelPackage,sfp))
+

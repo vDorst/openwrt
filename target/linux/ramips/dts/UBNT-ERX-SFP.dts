@@ -92,4 +92,16 @@
 			gpios = <&expander0 4 GPIO_ACTIVE_HIGH>;
 		};
 	};
+
+       sfp5: sfp {
+               compatible = "sff,sfp";
+               i2c-bus = <&i2c0>;
+               mod-def0-gpio = <&expander0 5 GPIO_ACTIVE_LOW>;
+               maximum-power-milliwatt = <1000>;
+       };
+};
+
+&lan5 {
+       managed = "in-band-status";
+       sfp = <&sfp5>;
 };
