@@ -1,0 +1,18 @@
+diff --git a/drivers/net/dsa/mt7530.c b/drivers/net/dsa/mt7530.c
+index 9d372dd8d10d..e8b1f8a5ca29 100644
+--- a/drivers/net/dsa/mt7530.c
++++ b/drivers/net/dsa/mt7530.c
+@@ -1076,10 +1076,13 @@ mt7530_probe(struct mdio_device *mdiodev)
+ 
+ 	dn = mdiodev->dev.of_node;
+ 
++
+ 	priv = devm_kzalloc(&mdiodev->dev, sizeof(*priv), GFP_KERNEL);
+ 	if (!priv)
+ 		return -ENOMEM;
+ 
++	dev_info(&mdiodev->dev, "MT7530 probe\n");
++
+ 	priv->ds = dsa_switch_alloc(&mdiodev->dev, DSA_MAX_PORTS);
+ 	if (!priv->ds)
+ 		return -ENOMEM;
