@@ -1,5 +1,3 @@
-/dts-v1/;
-
 #include "mt7621.dtsi"
 
 #include <dt-bindings/gpio/gpio.h>
@@ -28,7 +26,7 @@
 		};
 	};
 
-	reg_core {
+	reg_core: reg-core {
 		compatible = "regulator-fixed";
 		regulator-name = "core";
 
@@ -37,7 +35,7 @@
 		regulator-boot-on;
 	};
 
-	reg_io {
+	reg_io: reg-io {
 		compatible = "regulator-fixed";
 		regulator-name = "io";
 
@@ -46,7 +44,7 @@
 		regulator-boot-on;
 	};
 
-	mt7530: switch@0 {
+	mt7530: int-gsw {
 		compatible = "mediatek,mt7530";
 		#address-cells = <1>;
 		#size-cells = <0>;
@@ -98,7 +96,7 @@
 &pinctrl {
 	state_default: pinctrl0 {
 		gpio {
-			ralink,group = "uart2", "uart3", "i2c", "pcie", "rgmii2", "jtag";
+			ralink,group = "uart2", "uart3", "i2c", "rgmii2", "pcie", "jtag";
 			ralink,function = "gpio";
 		};
 	};
@@ -152,22 +150,6 @@
 			pause;
 		};
 	};
-/*
-	gmac1: mac@1 {
-		compatible = "mediatek,eth-mac";
-		mtd-mac-address = <&factory 0x22>;
-		reg = <1>;
-		phy-mode = "rgmii";
-		phy-handle = <&ephy5>;
-
-		// at803x default speed is 1000Mbit.
-		//fixed-link {
-		//	speed = <1000>;
-		//	full-duplex;
-		//	pause;
-		//};
-	};
-*/
 
 	mdio: mdio-bus {
 		#address-cells = <1>;
@@ -184,13 +166,18 @@
 };
 
 &mt7530 {
-	compatible = "mediatek,mt7530";
-	// reg = <0>;
+	status = "okay";
 
-	pinctrl-names = "default";
-	mediatek,mcm;
-	resets = <&rstctrl 2>;
-	reset-names = "mcm";
+        compatible = "mediatek,mt7530";
+        #address-cells = <1>;
+        #size-cells = <0>;
+
+        pinctrl-names = "default";
+        mediatek,mcm;
+        resets = <&rstctrl 2>;
+        reset-names = "mcm";
+        core-supply = <&reg_core>;
+        io-supply = <&reg_io>;
 
 	dsa,mii-bus = <&mdio>;
 
@@ -228,7 +215,7 @@
 			cpu = <&cpu_port0>;
 		};
 
-		port@5 {
+		lan5: port@5 {
 			reg = <5>;
 			label = "lan5";
 			cpu = <&cpu_port0>;
@@ -250,6 +237,3 @@
 	};
 };
 
-&nand {
-	status = "okay";
-};
