@@ -1,0 +1,170 @@
+diff --git a/drivers/net/ethernet/mediatek/mtk_eth_soc.c b/drivers/net/ethernet/mediatek/mtk_eth_soc.c
+index 33980bebd366..b7a90894c5e5 100644
+--- a/drivers/net/ethernet/mediatek/mtk_eth_soc.c
++++ b/drivers/net/ethernet/mediatek/mtk_eth_soc.c
+@@ -137,19 +137,18 @@ static int mtk_mdio_read(struct mii_bus *bus, int phy_addr, int phy_reg)
+ 	return _mtk_mdio_read(eth, phy_addr, phy_reg);
+ }
+ 
++#ifndef CONFIG_SOC_MT7621
+ static void mtk_gmac0_rgmii_adjust(struct mtk_eth *eth, int speed)
+ {
+ 	u32 val;
+-#ifndef CONFIG_SOC_MT7621
+ 	int ret;
+-#endif
+ 
+ 	val = (speed == SPEED_1000) ?
+ 		INTF_MODE_RGMII_1000 : INTF_MODE_RGMII_10_100;
+ 	mtk_w32(eth, val, INTF_MODE);
+ 
+-#ifndef CONFIG_SOC_MT7621
+-	// FIXME: Add TRGMII init code for MT7621!
++	regmap_update_bits(eth->ethsys, ETHSYS_CLKCFG0
++
+ 	regmap_update_bits(eth->ethsys, ETHSYS_CLKCFG0,
+ 			   ETHSYS_TRGMII_CLK_SEL362_5,
+ 			   ETHSYS_TRGMII_CLK_SEL362_5);
+@@ -166,8 +165,8 @@ static void mtk_gmac0_rgmii_adjust(struct mtk_eth *eth, int speed)
+ 	val = (speed == SPEED_1000) ?
+ 		TCK_CTRL_RGMII_1000 : TCK_CTRL_RGMII_10_100;
+ 	mtk_w32(eth, val, TRGMII_TCK_CTRL);
+-#endif
+ }
++#endif
+ 
+ #ifndef CONFIG_SOC_MT7621
+ static void mtk_gmac_sgmii_hw_setup(struct mtk_eth *eth, int mac_id)
+@@ -234,9 +233,12 @@ static void mtk_phy_link_adjust(struct net_device *dev)
+ 		break;
+ 	};
+ 
++#ifndef CONFIG_SOC_MT7621
++	// MT7621 supports TRGMII but is only set at init.
+ 	if (MTK_HAS_CAPS(mac->hw->soc->caps, MTK_GMAC1_TRGMII) &&
+ 	    !mac->id && !mac->trgmii)
+ 		mtk_gmac0_rgmii_adjust(mac->hw, dev->phydev->speed);
++#endif
+ 
+ 	if (dev->phydev->link)
+ 		mcr |= MAC_MCR_FORCE_LINK;
+@@ -1965,6 +1967,8 @@ static int mtk_hw_init(struct mtk_eth *eth)
+ {
+ 	int i, val, ret;
+ 
++	printk("mtk_hw_init!\n");
++
+ 	if (test_and_set_bit(MTK_HW_INIT, &eth->state))
+ 		return 0;
+ 
+@@ -1975,8 +1979,80 @@ static int mtk_hw_init(struct mtk_eth *eth)
+ 	if (ret)
+ 		goto err_disable_pm;
+ 
++#ifdef CONFIG_SOC_MT7621
++	//MT7621: Need to reset PPE and FE(ETH) to setup TRGMII mode!
++
++
++
++#define MT7621_DRAM_TYPE BIT(4)
++#define MT7621_TRGMII_CLK_SEL_DDR_PLL	BIT(5)
++#define MT7621_TRGMII_CLK_SEL_MSK	(BIT(5) | BIT(6))
++
++	// Put ETH and PPE in reset
++	regmap_update_bits(eth->ethsys, ETHSYS_RSTCTRL,
++	       RSTCTRL_PPE | RSTCTRL_FE,
++	       RSTCTRL_PPE | RSTCTRL_FE);
++
++	// Check mac0 phy_mode == TRGMII
++	if (eth->mac[0]) {
++		printk ("TRGMII: got MAC0\n");
++
++		ret = of_get_phy_mode(eth->mac[0]->of_node);
++		if (ret < 0) {
++			printk("TRGMII: MAC0 no device!");
++			goto err_disable_pm;
++		}
++
++		printk("TRGMII: MAC0 MODE: %s\n", phy_modes(ret));
++
++		if (ret == PHY_INTERFACE_MODE_TRGMII) {
++
++			//FIXME: Currently only supporting hardware with DDR3 memory chips!
++			ret = regmap_read(eth->ethsys, ETHSYS_SYSCFG0, &val);
++			if (ret)
++				goto err_disable_pm;
++
++			// Get DDR RAM TYPE
++			if (val & MT7621_DRAM_TYPE) {
++			// DDR2
++				printk("mtk_eth_soc: TRGMII not supported with DDR2 memory!\n");
++				ret = -ENODEV;
++				goto err_disable_pm;
++			}
++
++			// DDR3
++			regmap_update_bits(eth->ethsys, ETHSYS_CLKCFG0,
++				   MT7621_TRGMII_CLK_SEL_DDR_PLL,
++				   MT7621_TRGMII_CLK_SEL_MSK);
++		}
++	} 
++
++		printk("TRGMII: FORCE TRGMII!!!\n");
++		//FIXME: Currently only supporting hardware with DDR3 memory chips!
++		ret = regmap_read(eth->ethsys, ETHSYS_SYSCFG0, &val);
++		if (!ret) {
++			// Get DDR RAM TYPE
++			if (val & MT7621_DRAM_TYPE) {
++			// DDR2
++				printk("mtk_eth_soc: TRGMII not supported with DDR2 memory!\n");
++				ret = -ENODEV;
++				goto err_disable_pm;
++			}
++
++			// DDR3
++			regmap_update_bits(eth->ethsys, ETHSYS_CLKCFG0,
++				   MT7621_TRGMII_CLK_SEL_DDR_PLL,
++				   MT7621_TRGMII_CLK_SEL_MSK);
++		}
++
++	// Get ETH and PPE out reset
++	regmap_update_bits(eth->ethsys, ETHSYS_RSTCTRL,
++	       RSTCTRL_PPE | RSTCTRL_FE, 
++	       ~(RSTCTRL_PPE | RSTCTRL_FE));
++#else
+ 	ethsys_reset(eth, RSTCTRL_FE);
+ 	ethsys_reset(eth, RSTCTRL_PPE);
++#endif
+ 
+ 	regmap_read(eth->ethsys, ETHSYS_SYSCFG0, &val);
+ 	for (i = 0; i < MTK_MAC_COUNT; i++) {
+@@ -2148,8 +2224,12 @@ static void mtk_pending_work(struct work_struct *work)
+ 				     eth->dev->pins->default_state);
+ #endif
+ 
++	printk("mtk_hw_init: start\n");
++
+ 	mtk_hw_init(eth);
+ 
++	printk("mtk_hw_init: done\n");
++
+ 	for (i = 0; i < MTK_MAC_COUNT; i++) {
+ 		if (!eth->mac[i] ||
+ 		    of_phy_is_fixed_link(eth->mac[i]->of_node))
+@@ -2158,6 +2238,7 @@ static void mtk_pending_work(struct work_struct *work)
+ 		if (err)
+ 			dev_err(eth->dev, "%s: PHY init failed.\n",
+ 				eth->netdev[i]->name);
++		printk("mac%d: phy_init_hw\n", i);
+ 	}
+ 
+ 	/* restart DMA and enable IRQs */
+@@ -2729,7 +2810,7 @@ static const struct mtk_soc_data mt2701_data = {
+ };
+ 
+ static const struct mtk_soc_data mt7621_data = {
+-	.caps = 0,
++	.caps = MTK_GMAC1_TRGMII,
+ 	.required_clks = MT7621_CLKS_BITMAP
+ };
+ 
