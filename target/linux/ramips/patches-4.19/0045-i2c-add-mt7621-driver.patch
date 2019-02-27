@@ -13,28 +13,28 @@ Signed-off-by: John Crispin <blogic@openwrt.org>
 
 --- a/drivers/i2c/busses/Kconfig
 +++ b/drivers/i2c/busses/Kconfig
-@@ -868,6 +868,11 @@ config I2C_RALINK
- 	depends on RALINK && !SOC_MT7621
- 	select OF_I2C
+@@ -709,6 +709,11 @@ config I2C_MT65XX
+          If you want to use MediaTek(R) I2C interface, say Y or M here.
+          If unsure, say N.
  
 +config I2C_MT7621
-+	tristate "MT7621/MT7628 I2C Controller"
-+	depends on RALINK && (SOC_MT7620 || SOC_MT7621)
-+	select OF_I2C
++       tristate "MT7621/MT7628 I2C Controller"
++       depends on RALINK && (SOC_MT7620 || SOC_MT7621)
++       select OF_I2C
 +
- config HAVE_S3C2410_I2C
- 	bool
- 	help
+ config I2C_MV64XXX
+        tristate "Marvell mv64xxx I2C Controller"
+        depends on MV64X60 || PLAT_ORION || ARCH_SUNXI || ARCH_MVEBU
 --- a/drivers/i2c/busses/Makefile
 +++ b/drivers/i2c/busses/Makefile
-@@ -85,6 +85,7 @@ obj-$(CONFIG_I2C_PUV3)		+= i2c-puv3.o
- obj-$(CONFIG_I2C_PXA)		+= i2c-pxa.o
- obj-$(CONFIG_I2C_PXA_PCI)	+= i2c-pxa-pci.o
- obj-$(CONFIG_I2C_RALINK)	+= i2c-ralink.o
-+obj-$(CONFIG_I2C_MT7621)	+= i2c-mt7621.o
- obj-$(CONFIG_I2C_QUP)		+= i2c-qup.o
- obj-$(CONFIG_I2C_RIIC)		+= i2c-riic.o
- obj-$(CONFIG_I2C_RK3X)		+= i2c-rk3x.o
+@@ -71,6 +71,7 @@
+ obj-$(CONFIG_I2C_MESON)		+= i2c-meson.o
+ obj-$(CONFIG_I2C_MPC)		+= i2c-mpc.o
+ obj-$(CONFIG_I2C_MT65XX)	+= i2c-mt65xx.o
+++obj-$(CONFIG_I2C_MT7621)	+= i2c-mt7621.o
+ obj-$(CONFIG_I2C_MV64XXX)	+= i2c-mv64xxx.o
+ obj-$(CONFIG_I2C_MXS)		+= i2c-mxs.o
+ obj-$(CONFIG_I2C_NOMADIK)	+= i2c-nomadik.o
 --- /dev/null
 +++ b/drivers/i2c/busses/i2c-mt7621.c
 @@ -0,0 +1,433 @@

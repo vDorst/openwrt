@@ -13,7 +13,6 @@ Signed-off-by: John Crispin <blogic@openwrt.org>
  drivers/mtd/nand/mt6575_typedefs.h  |  340 ++++++
  drivers/mtd/nand/mtk_nand2.c         | 2304 +++++++++++++++++++++++++++++++++++
  drivers/mtd/nand/mtk_nand2.h         |  452 +++++++
- drivers/mtd/nand/nand_base.c        |    6 +-
  drivers/mtd/nand/nand_def.h         |  123 ++
  drivers/mtd/nand/nand_device_list.h |   55 +
  drivers/mtd/nand/partition.h        |  115 ++
@@ -30,27 +29,27 @@ Signed-off-by: John Crispin <blogic@openwrt.org>
 
 --- a/drivers/mtd/nand/Kconfig
 +++ b/drivers/mtd/nand/Kconfig
-@@ -563,4 +563,10 @@ config MTD_NAND_MTK
- 	  Enables support for NAND controller on MTK SoCs.
- 	  This controller is found on mt27xx, mt81xx, mt65xx SoCs.
+@@ -5,3 +5,9 @@ source "drivers/mtd/nand/onenand/Kconfig"
  
-+config MTK_MTD_NAND
-+	tristate "Support for MTK SoC NAND controller"
-+	depends on SOC_MT7621
-+	select MTD_NAND_IDS
-+	select MTD_NAND_ECC
+ source "drivers/mtd/nand/raw/Kconfig"
+ source "drivers/mtd/nand/spi/Kconfig"
 +
- endif # MTD_NAND
++config MTK_MTD_NAND
++       tristate "Support for MTK SoC NAND controller"
++       depends on SOC_MT7621
++       select MTD_NAND_IDS
++       select MTD_NAND_ECC
 --- a/drivers/mtd/nand/Makefile
 +++ b/drivers/mtd/nand/Makefile
-@@ -60,6 +60,7 @@ obj-$(CONFIG_MTD_NAND_HISI504)	        +
- obj-$(CONFIG_MTD_NAND_BRCMNAND)		+= brcmnand/
- obj-$(CONFIG_MTD_NAND_QCOM)		+= qcom_nandc.o
- obj-$(CONFIG_MTD_NAND_MTK)		+= mtk_nand.o mtk_ecc.o
-+obj-$(CONFIG_MTK_MTD_NAND)		+= mtk_nand2.o bmt.o
+@@ -2,6 +2,7 @@
  
- nand-objs := nand_base.o nand_bbt.o nand_timings.o nand_ids.o
- nand-objs += nand_amd.o
+ nandcore-objs := core.o bbt.o
+ obj-$(CONFIG_MTD_NAND_CORE) += nandcore.o
++obj-$(CONFIG_MTK_MTD_NAND) += mtk_nand2.o bmt.o
+ 
+ obj-y  += onenand/
+ obj-y  += raw/
+
 --- /dev/null
 +++ b/drivers/mtd/nand/bmt.c
 @@ -0,0 +1,750 @@
@@ -4099,35 +4098,6 @@ Signed-off-by: John Crispin <blogic@openwrt.org>
 +extern u32	CFG_BLOCKSIZE;
 +#endif
 +#endif
---- a/drivers/mtd/nand/nand_base.c
-+++ b/drivers/mtd/nand/nand_base.c
-@@ -48,7 +48,7 @@
- #include <linux/mtd/partitions.h>
- #include <linux/of.h>
- 
--static int nand_get_device(struct mtd_info *mtd, int new_state);
-+int nand_get_device(struct mtd_info *mtd, int new_state);
- 
- static int nand_do_write_oob(struct mtd_info *mtd, loff_t to,
- 			     struct mtd_oob_ops *ops);
-@@ -240,7 +240,7 @@ static int check_offs_len(struct mtd_inf
-  *
-  * Release chip lock and wake up anyone waiting on the device.
-  */
--static void nand_release_device(struct mtd_info *mtd)
-+void nand_release_device(struct mtd_info *mtd)
- {
- 	struct nand_chip *chip = mtd_to_nand(mtd);
- 
-@@ -968,7 +968,7 @@ static void panic_nand_get_device(struct
-  *
-  * Get the device and lock it for exclusive access
-  */
--static int
-+int
- nand_get_device(struct mtd_info *mtd, int new_state)
- {
- 	struct nand_chip *chip = mtd_to_nand(mtd);
 --- /dev/null
 +++ b/drivers/mtd/nand/nand_def.h
 @@ -0,0 +1,123 @@
