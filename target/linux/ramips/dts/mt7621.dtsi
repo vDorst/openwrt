@@ -460,7 +460,7 @@
 
 		mediatek,switch = <&gsw>;
 
-		mdio-bus {
+		mdio: mdio-bus {
 			#address-cells = <1>;
 			#size-cells = <0>;
 
