@@ -62,10 +62,13 @@ ramips_setup_interfaces()
 	iptime,a6ns-m|\
 	mikrotik,rb750gr3|\
 	ubiquiti,edgerouterx|\
-	ubiquiti,edgerouterx-sfp|\
 	youhua,wr1200js)
 		ucidef_add_switch "switch0" \
 			"1:lan" "2:lan" "3:lan" "4:lan" "0:wan" "6@eth0"
+		;;
+	ubiquiti,edgerouterx-sfp)
+		ucidef_add_switch "switch0" \
+			"0:lan" "1:lan" "2:lan" "3:lan" "4:lan" "5:wan" "6@eth0"
 		;;
 	dlink,dir-860l-b1|\
 	elecom,wrc-1167ghbk2-s|\
