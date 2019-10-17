@@ -213,7 +213,6 @@ ramips_setup_interfaces()
 	tplink,tl-wr842n-v5|\
 	unielec,u7628-01-128m-16m|\
 	ubiquiti,edgerouterx|\
-	ubiquiti,edgerouterx-sfp|\
 	upvel,ur-326n4g|\
 	wrtnode,wrtnode|\
 	wrtnode,wrtnode2p|\
@@ -223,6 +222,10 @@ ramips_setup_interfaces()
 	zyxel,keenetic-extra-ii)
 		ucidef_add_switch "switch0" \
 			"1:lan" "2:lan" "3:lan" "4:lan" "0:wan" "6@eth0"
+		;;
+	ubiquiti,edgerouterx-sfp)
+		ucidef_add_switch "switch0" \
+			"0:lan" "1:lan" "2:lan" "3:lan" "4:lan" "5:wan" "6@eth0"
 		;;
 	asiarf,ap7621-001)
 		ucidef_add_switch "switch0" "0:lan" "4:wan" "6@eth0"

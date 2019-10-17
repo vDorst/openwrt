@@ -22,3 +22,20 @@
 		};
 	};
 };
+
+&mdio {
+	ephy5: ethernet-phy@7 {
+		reg = <7>;
+	};
+};
+
+&gsw {
+	ports {
+		lan5: port@5 {
+			reg = <5>;
+			label = "lan5";
+			phy-handle = <&ephy5>;
+			phy-mode = "rgmii-rxid";
+		};
+	};
+};
