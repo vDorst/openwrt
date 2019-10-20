@@ -32,3 +32,11 @@
 		};
 	};
 };
+
+&gpio0 {
+	sfp_i2c_clk_gate {
+		gpio-hog;
+		gpios = <7 GPIO_ACTIVE_LOW>;
+		output-high;
+	};
+};
