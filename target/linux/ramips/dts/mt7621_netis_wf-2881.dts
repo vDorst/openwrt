@@ -55,33 +55,36 @@
 &nand {
 	status = "okay";
 
-	partitions {
-		compatible = "fixed-partitions";
-		#address-cells = <1>;
-		#size-cells = <1>;
+	nand@0 {
+		reg = <0>;
+		partitions {
+			compatible = "fixed-partitions";
+			#address-cells = <1>;
+			#size-cells = <1>;
 
-		partition@0 {
-			label = "u-boot";
-			reg = <0x0 0x80000>;
-			read-only;
-		};
+			partition@0 {
+				label = "u-boot";
+				reg = <0x0 0x80000>;
+				read-only;
+			};
 
-		partition@80000 {
-			label = "config";
-			reg = <0x80000 0x80000>;
-			read-only;
-		};
+			partition@80000 {
+				label = "config";
+				reg = <0x80000 0x80000>;
+				read-only;
+			};
 
-		factory: partition@100000 {
-			label = "factory";
-			reg = <0x100000 0x40000>;
-			read-only;
-		};
+			factory: partition@100000 {
+				label = "factory";
+				reg = <0x100000 0x40000>;
+				read-only;
+			};
 
-		partition@140000 {
-			compatible = "denx,uimage";
-			label = "firmware";
-			reg = <0x140000 0x7e40000>;
+			partition@140000 {
+				compatible = "denx,uimage";
+				label = "firmware";
+				reg = <0x140000 0x7e40000>;
+			};
 		};
 	};
 };
