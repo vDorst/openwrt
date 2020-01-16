@@ -73,7 +73,7 @@
 
 &state_default {
 	gpio {
-		ralink,group = "uart2", "uart3", "i2c", "pcie", "rgmii2", "jtag";
+		ralink,group = "uart2", "uart3", "pcie", "rgmii2", "jtag";
 		ralink,function = "gpio";
 	};
 };
