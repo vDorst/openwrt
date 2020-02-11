@@ -1658,7 +1658,7 @@ static int fe_probe(struct platform_device *pdev)
 	priv->msg_enable = netif_msg_init(fe_msg_level, FE_DEFAULT_MSG_ENABLE);
 	priv->rx_ring.frag_size = fe_max_frag_size(ETH_DATA_LEN);
 	priv->rx_ring.rx_buf_size = fe_max_buf_size(priv->rx_ring.frag_size);
-	priv->tx_ring.tx_ring_size = NUM_DMA_DESC;
+	priv->tx_ring.tx_ring_size = 32;
 	priv->rx_ring.rx_ring_size = NUM_DMA_DESC;
 	INIT_WORK(&priv->pending_work, fe_pending_work);
 	u64_stats_init(&priv->hw_stats->syncp);
