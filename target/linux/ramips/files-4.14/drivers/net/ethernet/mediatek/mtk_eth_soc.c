@@ -56,7 +56,7 @@
 		NETIF_MSG_RX_ERR | \
 		NETIF_MSG_TX_ERR)
 
-#define TX_DMA_DESP2_DEF	(TX_DMA_LS0 | TX_DMA_DONE)
+#define TX_DMA_DESP2_DEF	(TX_DMA_LS0)
 #define TX_DMA_DESP4_DEF	(TX_DMA_QN(3) | TX_DMA_PN(1))
 #define NEXT_TX_DESP_IDX(X)	(((X) + 1) & (ring->tx_ring_size - 1))
 #define NEXT_RX_DESP_IDX(X)	(((X) + 1) & (ring->rx_ring_size - 1))
@@ -658,7 +658,6 @@ fe_next_frag(struct sk_buff *head, struct sk_buff *skb)
 	return NULL;
 }
 
-
 static int fe_tx_map_dma(struct sk_buff *skb, struct net_device *dev,
 			 int tx_num, struct fe_tx_ring *ring)
 {
@@ -741,6 +740,7 @@ next_frag:
 	netdev_sent_queue(dev, head->len);
 	skb_tx_timestamp(head);
 
+	// pr_info(" tx_map: CTX %u DTX %u idx %u\n", ring->tx_next_idx, fe_reg_r32(FE_REG_TX_DTX_IDX0), ring->tx_next_idx);
 	fe_tx_dma_write_desc(ring, &st);
 	ring->tx_next_idx = st.ring_idx;
 
@@ -991,8 +991,13 @@ static int fe_poll_tx(struct fe_priv *priv, int budget, u32 tx_intr,
 
 	idx = ring->tx_free_idx;
 	hwidx = fe_reg_r32(FE_REG_TX_DTX_IDX0);
+	// pr_info("poll_tx: CTX %u DTX %u idx %u\n", fe_reg_r32(FE_REG_TX_CTX_IDX0), hwidx, idx);
 
 	while ((idx != hwidx) && budget) {
+		if (!(ring->tx_dma[idx].txd2 & TX_DMA_DONE)) {
+			pr_info("dma not ready %d\n", idx);
+			break;
+		}
 		tx_buf = &ring->tx_buf[idx];
 		skb = tx_buf->skb;
 
@@ -1098,6 +1103,7 @@ static void fe_tx_timeout(struct net_device *dev)
 {
 	struct fe_priv *priv = netdev_priv(dev);
 	struct fe_tx_ring *ring = &priv->tx_ring;
+	u32 status1, status2, idx, i;
 
 	priv->netdev->stats.tx_errors++;
 	netif_err(priv, tx_err, dev,
@@ -1118,6 +1124,29 @@ static void fe_tx_timeout(struct net_device *dev)
 		   fe_reg_r32(FE_REG_RX_MAX_CNT0),
 		   fe_reg_r32(FE_REG_RX_CALC_IDX0),
 		   fe_reg_r32(FE_REG_RX_DRX_IDX0));
+
+	for (idx = 0; idx < ring->tx_ring_size; idx += 64) {
+		status1 = 0, status2 = 0;
+		for (i = 0; i < 32; i++) {
+			if ((ring->tx_dma[idx+i].txd2 & TX_DMA_DONE))
+				status2 |= BIT(0);
+			status1 = status1 << 1;
+		}
+		for (i = 0; i < 32; i++) {
+			if ((ring->tx_dma[idx+32+i].txd2 & TX_DMA_DONE))
+				status2 |= BIT(0);
+			status2 = status2 << 1;
+		}
+		pr_info("%s: %02x: 0x%08x 0x%08x\n", __func__, idx, status2, status1);
+	}
+
+	idx = fe_reg_r32(FE_REG_TX_DTX_IDX0);
+	if (!idx)
+		idx = ring->tx_ring_size;
+	idx--;
+
+	pr_info("Set cpu pointer behind dma. idx = %d", idx);
+	fe_reg_w32(idx, FE_REG_TX_CTX_IDX0);
 
 	if (!test_and_set_bit(FE_FLAG_RESET_PENDING, priv->pending_flags))
 		schedule_work(&priv->pending_work);
@@ -1658,7 +1687,7 @@ static int fe_probe(struct platform_device *pdev)
 	priv->msg_enable = netif_msg_init(fe_msg_level, FE_DEFAULT_MSG_ENABLE);
 	priv->rx_ring.frag_size = fe_max_frag_size(ETH_DATA_LEN);
 	priv->rx_ring.rx_buf_size = fe_max_buf_size(priv->rx_ring.frag_size);
-	priv->tx_ring.tx_ring_size = 32;
+	priv->tx_ring.tx_ring_size = NUM_TX_DMA_DESC;
 	priv->rx_ring.rx_ring_size = NUM_DMA_DESC;
 	INIT_WORK(&priv->pending_work, fe_pending_work);
 	u64_stats_init(&priv->hw_stats->syncp);

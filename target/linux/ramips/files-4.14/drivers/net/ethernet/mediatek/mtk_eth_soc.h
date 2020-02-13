@@ -54,6 +54,7 @@ enum fe_work_flag {
 /* power of 2 to let NEXT_TX_DESP_IDX work */
 #define NUM_DMA_DESC		BIT(10)
 #define MAX_DMA_DESC		0xfff
+#define NUM_TX_DMA_DESC		BIT(7)
 
 #define FE_DELAY_EN_INT		0x80
 #define FE_DELAY_MAX_INT	0x04
