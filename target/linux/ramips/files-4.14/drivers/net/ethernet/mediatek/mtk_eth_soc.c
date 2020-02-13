@@ -1145,8 +1145,8 @@ static void fe_tx_timeout(struct net_device *dev)
 		idx = ring->tx_ring_size;
 	idx--;
 
-	pr_info("Set cpu pointer behind dma. idx = %d", idx);
-	fe_reg_w32(idx, FE_REG_TX_CTX_IDX0);
+	pr_info("Queue stopped %u, empty %u tx_thresh %u\n",
+		netif_queue_stopped(dev), fe_empty_txd(ring), ring->tx_thresh);
 
 	if (!test_and_set_bit(FE_FLAG_RESET_PENDING, priv->pending_flags))
 		schedule_work(&priv->pending_work);
