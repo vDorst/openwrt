@@ -87,6 +87,7 @@ static const u16 fe_reg_table_default[FE_REG_COUNT] = {
 };
 
 static const u16 *fe_reg_table = fe_reg_table_default;
+static atomic_t tx_filled = ATOMIC_INIT(0);
 
 struct fe_work_t {
 	int bitnr;
@@ -302,6 +303,8 @@ static int fe_alloc_rx(struct fe_priv *priv)
 			ring->rx_dma[i].rxd2 = RX_DMA_LSO;
 	}
 	ring->rx_calc_idx = ring->rx_ring_size - 1;
+	atomic_set(&tx_filled, 0);
+
 	/* make sure that all changes to the dma ring are flushed before we
 	 * continue
 	 */
@@ -743,6 +746,8 @@ next_frag:
 	// pr_info(" tx_map: CTX %u DTX %u idx %u\n", ring->tx_next_idx, fe_reg_r32(FE_REG_TX_DTX_IDX0), ring->tx_next_idx);
 	fe_tx_dma_write_desc(ring, &st);
 	ring->tx_next_idx = st.ring_idx;
+	if (atomic_inc_return(&tx_filled) > ring->tx_ring_size)
+		pr_info("BUG: More packet in the queue %d rsize %u", READ_ONCE(tx_filled),  ring->tx_ring_size);
 
 	/* make sure that all changes to the dma ring are flushed before we
 	 * continue
@@ -1011,6 +1016,8 @@ static int fe_poll_tx(struct fe_priv *priv, int budget, u32 tx_intr,
 		}
 		fe_txd_unmap(dev, tx_buf);
 		idx = NEXT_TX_DESP_IDX(idx);
+		if (atomic_dec_return (&tx_filled) == -1)
+			pr_info("BUG: more pulled then filled\n");
 	}
 	ring->tx_free_idx = idx;
 
@@ -1145,8 +1152,8 @@ static void fe_tx_timeout(struct net_device *dev)
 		idx = ring->tx_ring_size;
 	idx--;
 
-	pr_info("Queue stopped %u, empty %u tx_thresh %u\n",
-		netif_queue_stopped(dev), fe_empty_txd(ring), ring->tx_thresh);
+	pr_info("Queue stopped %u, empty %u tx_thresh %u filled %d\n",
+		netif_queue_stopped(dev), fe_empty_txd(ring), ring->tx_thresh, READ_ONCE(tx_filled) );
 
 	if (!test_and_set_bit(FE_FLAG_RESET_PENDING, priv->pending_flags))
 		schedule_work(&priv->pending_work);
