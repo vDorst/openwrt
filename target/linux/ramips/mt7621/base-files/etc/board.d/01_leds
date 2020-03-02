@@ -27,7 +27,7 @@ gehua,ghl-r-001)
 	ucidef_set_led_netdev "internet" "internet" "$boardname:blue:internet" "eth0.2"
 	;;
 dlink,dir-860l-b1)
-	ucidef_set_led_netdev "wan" "wan" "$boardname:green:net" "eth0.2"
+	ucidef_set_led_netdev "wan" "wan" "$boardname:green:net" "wan"
 	;;
 gnubee,gb-pc1|\
 gnubee,gb-pc2)

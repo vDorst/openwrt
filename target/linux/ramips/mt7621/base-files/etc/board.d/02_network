@@ -69,7 +69,6 @@ ramips_setup_interfaces()
 		ucidef_add_switch "switch0" \
 			"1:lan" "2:lan" "3:lan" "4:lan" "0:wan" "6@eth0"
 		;;
-	dlink,dir-860l-b1|\
 	elecom,wrc-1167ghbk2-s|\
 	elecom,wrc-1900gst|\
 	elecom,wrc-2533gst|\
@@ -86,6 +85,9 @@ ramips_setup_interfaces()
 	buffalo,wsr-600dhp)
 		ucidef_add_switch "switch0" \
 			"0:lan:1" "1:lan:2" "2:lan:3" "3:lan:4" "4:wan:5" "6@eth0"
+		;;
+	dlink,dir-860l-b1)
+		ucidef_set_interfaces_lan_wan "lan1 lan2 lan3 lan4" "wan"
 		;;
 	d-team,newifi-d2)
 		ucidef_add_switch "switch0" \
@@ -204,7 +206,6 @@ ramips_setup_macs()
 	dlink,dir-860l-b1)
 		lan_mac=$(mtd_get_mac_ascii factory lanmac)
 		wan_mac=$(mtd_get_mac_ascii factory wanmac)
-		label_mac=$(mtd_get_mac_binary radio 0x4)
 		;;
 	edimax,ra21s|\
 	edimax,rg21s)
