@@ -165,7 +165,7 @@
 
 &state_default {
 	gpio {
-		ralink,group = "i2c", "uart2", "uart3", "rgmii2", "sdhci";
+		ralink,group = "uart3", "jtag", "wdt";
 		ralink,function = "gpio";
 	};
 };
