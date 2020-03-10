@@ -66,8 +66,7 @@ ramips_setup_interfaces()
 	ubiquiti,edgerouterx|\
 	ubiquiti,edgerouterx-sfp|\
 	youhua,wr1200js)
-		ucidef_add_switch "switch0" \
-			"1:lan" "2:lan" "3:lan" "4:lan" "0:wan" "6@eth0"
+		ucidef_set_interfaces_lan_wan "eth1 eth2 eth3 eth4 eth5" "eth0"
 		;;
 	elecom,wrc-1167ghbk2-s|\
 	elecom,wrc-1900gst|\

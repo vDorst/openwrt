@@ -466,7 +466,7 @@
 			phy-mode = "rgmii-rxid";
 			phy-handle = <&phy_external>;
 		};
-		mdio-bus {
+		mdio: mdio-bus {
 			#address-cells = <1>;
 			#size-cells = <0>;
 
