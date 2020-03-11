@@ -64,9 +64,11 @@ ramips_setup_interfaces()
 	iptime,a6ns-m|\
 	mikrotik,rb750gr3|\
 	ubiquiti,edgerouterx|\
-	ubiquiti,edgerouterx-sfp|\
 	youhua,wr1200js)
 		ucidef_set_interfaces_lan_wan "eth1 eth2 eth3 eth4 eth5" "eth0"
+		;;
+	ubiquiti,edgerouterx-sfp)
+		ucidef_set_interfaces_lan_wan "eth0 eth1 eth2 eth3 eth4" "eth5"
 		;;
 	elecom,wrc-1167ghbk2-s|\
 	elecom,wrc-1900gst|\
