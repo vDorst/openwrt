@@ -99,8 +99,8 @@
 
 &state_default {
 	gpio {
-		ralink,group = "uart2", "uart3", "rgmii2", "jtag";
-		ralink,function = "gpio";
+		groups = "uart2", "uart3", "rgmii2", "jtag";
+		function = "gpio";
 	};
 };
 
